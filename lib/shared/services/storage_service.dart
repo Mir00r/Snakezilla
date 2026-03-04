@@ -20,6 +20,10 @@ class _Keys {
 class StorageService {
   final SharedPreferences _prefs;
 
+  /// Exposes the underlying [SharedPreferences] for direct access
+  /// by feature-level providers that manage their own keys.
+  SharedPreferences get prefs => _prefs;
+
   StorageService(this._prefs);
 
   // ── Settings ───────────────────────────────────────────────────────────────

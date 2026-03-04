@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../economy/providers/player_profile_provider.dart';
+import '../../skins/models/snake_skin.dart';
 import '../providers/game_provider.dart';
 import 'snake_painter.dart';
 
@@ -37,6 +39,8 @@ class _GameBoardState extends ConsumerState<GameBoard>
   @override
   Widget build(BuildContext context) {
     final gameState = ref.watch(gameProvider);
+    final profile = ref.watch(playerProfileProvider);
+    final skin = SnakeSkins.fromId(profile.equippedSkinId);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return RepaintBoundary(
@@ -56,7 +60,7 @@ class _GameBoardState extends ConsumerState<GameBoard>
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF39FF14).withOpacity(0.1),
+                color: skin.glowColor.withOpacity(0.1),
                 blurRadius: 20,
                 spreadRadius: 2,
               ),
@@ -71,9 +75,14 @@ class _GameBoardState extends ConsumerState<GameBoard>
                   painter: SnakePainter(
                     snake: gameState.snake,
                     food: gameState.food,
+                    foodType: gameState.foodItem.type,
                     direction: gameState.direction,
                     foodPulse: _foodPulse.value,
                     isDarkMode: isDark,
+                    skin: skin,
+                    obstacles: gameState.obstacles,
+                    aiSnake: gameState.aiSnake,
+                    aiDirection: gameState.aiDirection,
                   ),
                 );
               },

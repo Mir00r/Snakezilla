@@ -1,0 +1,123 @@
+/// Immutable player profile holding economy, progression, and stats data.
+///
+/// Persisted via [StorageService] as a JSON map.
+class PlayerProfile {
+  /// In-game currency balance.
+  final int coins;
+
+  /// Total experience points earned.
+  final int xp;
+
+  /// Derived player level (100 XP per level).
+  int get level => (xp / 100).floor() + 1;
+
+  /// XP progress within the current level (0–99).
+  int get xpInLevel => xp % 100;
+
+  /// Total number of games played.
+  final int totalGames;
+
+  /// Cumulative score across all games.
+  final int totalScore;
+
+  /// All-time highest combo streak.
+  final int highestCombo;
+
+  /// Longest snake length ever achieved.
+  final int longestSnake;
+
+  /// Number of AI battles won.
+  final int aiWins;
+
+  /// IDs of unlocked achievements.
+  final Set<String> unlockedAchievements;
+
+  /// IDs of purchased / unlocked skins.
+  final Set<String> unlockedSkins;
+
+  /// ID of the currently equipped skin.
+  final String equippedSkinId;
+
+  /// Day index of the last daily reward claim (days since epoch).
+  final int lastDailyRewardDay;
+
+  const PlayerProfile({
+    this.coins = 0,
+    this.xp = 0,
+    this.totalGames = 0,
+    this.totalScore = 0,
+    this.highestCombo = 0,
+    this.longestSnake = 0,
+    this.aiWins = 0,
+    this.unlockedAchievements = const {},
+    this.unlockedSkins = const {'neon'},
+    this.equippedSkinId = 'neon',
+    this.lastDailyRewardDay = 0,
+  });
+
+  PlayerProfile copyWith({
+    int? coins,
+    int? xp,
+    int? totalGames,
+    int? totalScore,
+    int? highestCombo,
+    int? longestSnake,
+    int? aiWins,
+    Set<String>? unlockedAchievements,
+    Set<String>? unlockedSkins,
+    String? equippedSkinId,
+    int? lastDailyRewardDay,
+  }) {
+    return PlayerProfile(
+      coins: coins ?? this.coins,
+      xp: xp ?? this.xp,
+      totalGames: totalGames ?? this.totalGames,
+      totalScore: totalScore ?? this.totalScore,
+      highestCombo: highestCombo ?? this.highestCombo,
+      longestSnake: longestSnake ?? this.longestSnake,
+      aiWins: aiWins ?? this.aiWins,
+      unlockedAchievements: unlockedAchievements ?? this.unlockedAchievements,
+      unlockedSkins: unlockedSkins ?? this.unlockedSkins,
+      equippedSkinId: equippedSkinId ?? this.equippedSkinId,
+      lastDailyRewardDay: lastDailyRewardDay ?? this.lastDailyRewardDay,
+    );
+  }
+
+  /// Serialises to a JSON-compatible map.
+  Map<String, dynamic> toMap() => {
+        'coins': coins,
+        'xp': xp,
+        'totalGames': totalGames,
+        'totalScore': totalScore,
+        'highestCombo': highestCombo,
+        'longestSnake': longestSnake,
+        'aiWins': aiWins,
+        'unlockedAchievements': unlockedAchievements.toList(),
+        'unlockedSkins': unlockedSkins.toList(),
+        'equippedSkinId': equippedSkinId,
+        'lastDailyRewardDay': lastDailyRewardDay,
+      };
+
+  /// Deserialises from a stored map with safe defaults.
+  factory PlayerProfile.fromMap(Map<String, dynamic> map) {
+    return PlayerProfile(
+      coins: map['coins'] as int? ?? 0,
+      xp: map['xp'] as int? ?? 0,
+      totalGames: map['totalGames'] as int? ?? 0,
+      totalScore: map['totalScore'] as int? ?? 0,
+      highestCombo: map['highestCombo'] as int? ?? 0,
+      longestSnake: map['longestSnake'] as int? ?? 0,
+      aiWins: map['aiWins'] as int? ?? 0,
+      unlockedAchievements: (map['unlockedAchievements'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toSet() ??
+          {},
+      unlockedSkins: (map['unlockedSkins'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toSet() ??
+          {'neon'},
+      equippedSkinId: map['equippedSkinId'] as String? ?? 'neon',
+      lastDailyRewardDay: map['lastDailyRewardDay'] as int? ?? 0,
+    );
+  }
+}

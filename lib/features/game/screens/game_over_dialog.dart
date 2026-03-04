@@ -5,9 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/glass_container.dart';
 import '../../../shared/widgets/neon_text.dart';
+import '../../economy/providers/player_profile_provider.dart';
 import '../../leaderboard/models/leaderboard_entry.dart';
 import '../../leaderboard/providers/leaderboard_provider.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../models/game_mode.dart';
 import '../providers/game_provider.dart';
 
 /// Animated Game Over dialog shown as a modal overlay.
@@ -15,15 +17,28 @@ import '../providers/game_provider.dart';
 /// Features:
 /// * Scale + fade entrance animation
 /// * Score summary with "NEW HIGH SCORE" banner when applicable
+/// * Coins earned, combo stats, game mode display
+/// * Achievement unlock notification
 /// * Player name input for the leaderboard
 /// * MENU / RETRY action buttons
 Future<void> showGameOverDialog(
   BuildContext context,
   WidgetRef ref,
   int score,
-  int highScore,
-) async {
+  int highScore, {
+  int coinsEarned = 0,
+  int maxCombo = 0,
+  GameMode gameMode = GameMode.classic,
+}) async {
   final nameController = TextEditingController(text: 'Player');
+
+  // Check achievements after game over.
+  List<String> newAchievements = [];
+  try {
+    final unlocked =
+        ref.read(playerProfileProvider.notifier).checkAchievements();
+    newAchievements = unlocked.map((a) => '${a.badge} ${a.title}').toList();
+  } catch (_) {}
 
   await showGeneralDialog(
     context: context,
@@ -44,87 +59,167 @@ Future<void> showGameOverDialog(
             width: MediaQuery.of(context).size.width * 0.85,
             child: GlassContainer(
               borderColor: AppColors.neonPink.withOpacity(0.4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const NeonText(
-                    text: 'GAME OVER',
-                    fontSize: 22,
-                    color: AppColors.neonPink,
-                    glowRadius: 25,
-                  ),
-                  const SizedBox(height: 24),
-                  NeonText(
-                    text: 'Score: $score',
-                    fontSize: 16,
-                    color: AppColors.neonGreen,
-                  ),
-                  const SizedBox(height: 8),
-                  if (score >= highScore && score > 0)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: NeonText(
-                        text: 'NEW HIGH SCORE!',
-                        fontSize: 12,
-                        color: AppColors.neonYellow,
-                      ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const NeonText(
+                      text: 'GAME OVER',
+                      fontSize: 22,
+                      color: AppColors.neonPink,
+                      glowRadius: 25,
                     ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 8),
 
-                  // Player name input
-                  TextField(
-                    controller: nameController,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.pressStart2p(
-                      color: Colors.white,
-                      fontSize: 12,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Your Name',
-                      labelStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: 10,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: AppColors.neonGreen.withOpacity(0.3),
+                    // Mode badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.neonPurple.withOpacity(0.4),
                         ),
-                        borderRadius: BorderRadius.circular(12),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide:
-                            const BorderSide(color: AppColors.neonGreen),
-                        borderRadius: BorderRadius.circular(12),
+                      child: Text(
+                        '${gameMode.icon} ${gameMode.label}',
+                        style: GoogleFonts.pressStart2p(
+                          fontSize: 8,
+                          color: AppColors.neonPurple,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-                  // Action buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _DialogButton(
-                        label: 'MENU',
-                        color: AppColors.neonBlue,
-                        onTap: () {
-                          _saveScore(ref, nameController.text, score);
-                          Navigator.of(context).pop(); // close dialog
-                          Navigator.of(context).pop(); // back to home
-                        },
+                    // Score
+                    NeonText(
+                      text: 'Score: $score',
+                      fontSize: 16,
+                      color: AppColors.neonGreen,
+                    ),
+                    const SizedBox(height: 8),
+                    if (score >= highScore && score > 0)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: NeonText(
+                          text: 'NEW HIGH SCORE!',
+                          fontSize: 12,
+                          color: AppColors.neonYellow,
+                        ),
                       ),
-                      _DialogButton(
-                        label: 'RETRY',
-                        color: AppColors.neonGreen,
-                        onTap: () {
-                          _saveScore(ref, nameController.text, score);
-                          Navigator.of(context).pop();
-                          ref.read(gameProvider.notifier).startGame();
-                        },
+
+                    // Stats row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _StatChip(
+                            icon: '💰',
+                            value: '+$coinsEarned',
+                            color: AppColors.neonYellow),
+                        if (maxCombo > 1)
+                          _StatChip(
+                              icon: '🔥',
+                              value: '${maxCombo}x',
+                              color: AppColors.neonOrange),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Achievement notifications
+                    if (newAchievements.isNotEmpty) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: AppColors.neonYellow.withOpacity(0.1),
+                          border: Border.all(
+                            color: AppColors.neonYellow.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              'ACHIEVEMENT UNLOCKED!',
+                              style: GoogleFonts.pressStart2p(
+                                fontSize: 8,
+                                color: AppColors.neonYellow,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            ...newAchievements.map((a) => Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 2),
+                                  child: Text(
+                                    a,
+                                    style: GoogleFonts.pressStart2p(
+                                      fontSize: 8,
+                                      color: Colors.white,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                )),
+                          ],
+                        ),
                       ),
+                      const SizedBox(height: 12),
                     ],
-                  ),
-                ],
+
+                    // Player name input
+                    TextField(
+                      controller: nameController,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.pressStart2p(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Your Name',
+                        labelStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 10,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: AppColors.neonGreen.withOpacity(0.3),
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide:
+                              const BorderSide(color: AppColors.neonGreen),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Action buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _DialogButton(
+                          label: 'MENU',
+                          color: AppColors.neonBlue,
+                          onTap: () {
+                            _saveScore(ref, nameController.text, score);
+                            Navigator.of(context).pop();
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                        _DialogButton(
+                          label: 'RETRY',
+                          color: AppColors.neonGreen,
+                          onTap: () {
+                            _saveScore(ref, nameController.text, score);
+                            Navigator.of(context).pop();
+                            ref.read(gameProvider.notifier).startGame();
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -146,6 +241,42 @@ void _saveScore(WidgetRef ref, String name, int score) {
           difficulty: difficulty,
         ),
       );
+}
+
+/// Small stat chip for the game-over dialog.
+class _StatChip extends StatelessWidget {
+  final String icon;
+  final String value;
+  final Color color;
+
+  const _StatChip({
+    required this.icon,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: color.withOpacity(0.1),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: GoogleFonts.pressStart2p(fontSize: 10, color: color),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Neon-outlined button used inside the game-over dialog.
