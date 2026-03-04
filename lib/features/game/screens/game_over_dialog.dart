@@ -28,6 +28,8 @@ Future<void> showGameOverDialog(
   int highScore, {
   int coinsEarned = 0,
   int maxCombo = 0,
+  int kills = 0,
+  int goldCollected = 0,
   GameMode gameMode = GameMode.classic,
 }) async {
   final nameController = TextEditingController(text: 'Player');
@@ -91,6 +93,18 @@ Future<void> showGameOverDialog(
                     ),
                     const SizedBox(height: 16),
 
+                    // Victory banner for Battle Royale
+                    if (gameMode == GameMode.battleRoyale && score > 0)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: NeonText(
+                          text: '👑 VICTORY ROYALE 👑',
+                          fontSize: 14,
+                          color: AppColors.neonYellow,
+                          glowRadius: 20,
+                        ),
+                      ),
+
                     // Score
                     NeonText(
                       text: 'Score: $score',
@@ -109,8 +123,10 @@ Future<void> showGameOverDialog(
                       ),
 
                     // Stats row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
                       children: [
                         _StatChip(
                             icon: '💰',
@@ -121,6 +137,16 @@ Future<void> showGameOverDialog(
                               icon: '🔥',
                               value: '${maxCombo}x',
                               color: AppColors.neonOrange),
+                        if (kills > 0)
+                          _StatChip(
+                              icon: '💀',
+                              value: '$kills kills',
+                              color: AppColors.neonPink),
+                        if (goldCollected > 0)
+                          _StatChip(
+                              icon: '🪙',
+                              value: '$goldCollected',
+                              color: const Color(0xFFFFD700)),
                       ],
                     ),
                     const SizedBox(height: 12),

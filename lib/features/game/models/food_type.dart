@@ -11,7 +11,7 @@ enum FoodType {
     emoji: '🍎',
     basePoints: 10,
     color: AppColors.neonPink,
-    spawnWeight: 60,
+    spawnWeight: 50,
     duration: Duration.zero,
   ),
 
@@ -21,7 +21,7 @@ enum FoodType {
     emoji: '🔥',
     basePoints: 15,
     color: AppColors.neonOrange,
-    spawnWeight: 12,
+    spawnWeight: 10,
     duration: Duration(seconds: 5),
   ),
 
@@ -31,7 +31,7 @@ enum FoodType {
     emoji: '❄️',
     basePoints: 10,
     color: AppColors.neonBlue,
-    spawnWeight: 10,
+    spawnWeight: 8,
     duration: Duration(seconds: 4),
   ),
 
@@ -41,7 +41,7 @@ enum FoodType {
     emoji: '💰',
     basePoints: 5,
     color: AppColors.neonYellow,
-    spawnWeight: 10,
+    spawnWeight: 8,
     duration: Duration.zero,
   ),
 
@@ -51,7 +51,7 @@ enum FoodType {
     emoji: '🌈',
     basePoints: 20,
     color: AppColors.neonPurple,
-    spawnWeight: 5,
+    spawnWeight: 4,
     duration: Duration(seconds: 6),
   ),
 
@@ -62,6 +62,46 @@ enum FoodType {
     basePoints: 0,
     color: Color(0xFFFF4444),
     spawnWeight: 3,
+    duration: Duration.zero,
+  ),
+
+  /// Attracts nearby food toward the snake head.
+  magnet(
+    label: 'Magnet',
+    emoji: '🧲',
+    basePoints: 10,
+    color: Color(0xFFFF1744),
+    spawnWeight: 5,
+    duration: Duration(seconds: 6),
+  ),
+
+  /// Temporary invincibility — ignore self-collision & obstacles.
+  shield(
+    label: 'Shield',
+    emoji: '🛡️',
+    basePoints: 5,
+    color: Color(0xFF00E5FF),
+    spawnWeight: 4,
+    duration: Duration(seconds: 5),
+  ),
+
+  /// Pass through walls and own body.
+  ghost(
+    label: 'Ghost',
+    emoji: '👻',
+    basePoints: 10,
+    color: Color(0xFFB388FF),
+    spawnWeight: 3,
+    duration: Duration(seconds: 5),
+  ),
+
+  /// Gold coin: used only in Gold Rush mode, worth big bonus.
+  goldCoin(
+    label: 'Gold',
+    emoji: '🪙',
+    basePoints: 25,
+    color: Color(0xFFFFD700),
+    spawnWeight: 0, // manually spawned in Gold Rush
     duration: Duration.zero,
   );
 

@@ -136,8 +136,95 @@ class SnakeSkins {
     badge: '❄️',
   );
 
+  // ── New animal & themed skins ──────────────────────────────────────────
+
+  static const panda = SnakeSkin(
+    id: 'panda',
+    name: 'Panda',
+    description: 'Cuddly black and white.',
+    headColor: Color(0xFFFFFFFF),
+    bodyColor: Color(0xFF303030),
+    tailColor: Color(0xFF1A1A1A),
+    glowColor: Color(0xFFE0E0E0),
+    glowRadius: 6.0,
+    price: 400,
+    badge: '🐼',
+  );
+
+  static const dragon = SnakeSkin(
+    id: 'dragon',
+    name: 'Dragon Scale',
+    description: 'Ancient fire-breathing beast.',
+    headColor: Color(0xFFFF6F00),
+    bodyColor: Color(0xFFC62828),
+    tailColor: Color(0xFF4E342E),
+    glowColor: Color(0xFFFF6F00),
+    glowRadius: 14.0,
+    price: 1200,
+    animated: true,
+    badge: '🐉',
+  );
+
+  static const lava = SnakeSkin(
+    id: 'lava',
+    name: 'Molten Lava',
+    description: 'Fresh from the volcano core.',
+    headColor: Color(0xFFFFEA00),
+    bodyColor: Color(0xFFFF6D00),
+    tailColor: Color(0xFFBF360C),
+    glowColor: Color(0xFFFF6D00),
+    glowRadius: 12.0,
+    price: 900,
+    animated: true,
+    badge: '🌋',
+  );
+
+  static const ocean = SnakeSkin(
+    id: 'ocean',
+    name: 'Deep Ocean',
+    description: 'Mysterious abyssal blue.',
+    headColor: Color(0xFF00E5FF),
+    bodyColor: Color(0xFF0277BD),
+    tailColor: Color(0xFF01579B),
+    glowColor: Color(0xFF00E5FF),
+    glowRadius: 10.0,
+    price: 700,
+    badge: '🌊',
+  );
+
+  static const golden = SnakeSkin(
+    id: 'golden',
+    name: 'Golden King',
+    description: 'Pure gold royalty.',
+    headColor: Color(0xFFFFD700),
+    bodyColor: Color(0xFFFFC107),
+    tailColor: Color(0xFFFF8F00),
+    glowColor: Color(0xFFFFD700),
+    glowRadius: 12.0,
+    price: 1500,
+    animated: true,
+    badge: '👑',
+  );
+
+  static const galaxy = SnakeSkin(
+    id: 'galaxy',
+    name: 'Cosmic Nebula',
+    description: 'Born from the stars.',
+    headColor: Color(0xFFE040FB),
+    bodyColor: Color(0xFF7C4DFF),
+    tailColor: Color(0xFF304FFE),
+    glowColor: Color(0xFFE040FB),
+    glowRadius: 14.0,
+    price: 2000,
+    animated: true,
+    badge: '🌌',
+  );
+
   /// All skins in display order.
-  static const List<SnakeSkin> all = [neon, fire, cyber, rainbow, metallic, ice];
+  static const List<SnakeSkin> all = [
+    neon, fire, cyber, rainbow, metallic, ice,
+    panda, dragon, lava, ocean, golden, galaxy,
+  ];
 
   /// Looks up a skin by its [id]. Falls back to [neon].
   static SnakeSkin fromId(String id) {

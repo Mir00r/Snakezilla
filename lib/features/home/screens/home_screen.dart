@@ -9,6 +9,7 @@ import '../../../shared/widgets/glass_container.dart';
 import '../../../shared/widgets/neon_text.dart';
 import '../../achievements/screens/achievements_screen.dart';
 import '../../economy/providers/player_profile_provider.dart';
+import '../../economy/screens/daily_missions_screen.dart';
 import '../../game/screens/mode_select_screen.dart';
 import '../../leaderboard/screens/leaderboard_screen.dart';
 import '../../settings/screens/settings_screen.dart';
@@ -69,6 +70,16 @@ class HomeScreen extends ConsumerWidget {
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                           builder: (_) => const ModeSelectScreen()),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _MenuButton(
+                    label: 'MISSIONS',
+                    icon: Icons.assignment_rounded,
+                    color: AppColors.neonOrange,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const DailyMissionsScreen()),
                     ),
                   ),
                   const SizedBox(height: 12),

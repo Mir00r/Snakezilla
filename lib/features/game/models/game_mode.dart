@@ -5,7 +5,9 @@ enum GameMode {
   classic('Classic', '🎮', 'Classic endless snake gameplay'),
   timeAttack('Time Attack', '⏱️', 'Score big before time runs out'),
   survival('Survival', '💀', 'Stay alive as hazards close in'),
-  aiBattle('AI Battle', '🤖', 'Compete against a smart AI snake');
+  aiBattle('AI Battle', '🤖', 'Compete against smart AI snakes'),
+  battleRoyale('Battle Royale', '👑', 'Last snake standing wins!'),
+  goldRush('Gold Rush', '🪙', 'Grab all the gold coins!');
 
   /// Display label for menus.
   final String label;

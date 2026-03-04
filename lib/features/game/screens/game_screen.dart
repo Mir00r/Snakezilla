@@ -71,38 +71,48 @@ class _GameScreenState extends ConsumerState<GameScreen>
   // ── Keyboard handling ──────────────────────────────────────────────────────
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-
     final notifier = ref.read(gameProvider.notifier);
 
-    switch (event.logicalKey) {
-      case LogicalKeyboardKey.arrowUp:
-      case LogicalKeyboardKey.keyW:
-        notifier.changeDirection(Direction.up);
+    if (event is KeyDownEvent) {
+      switch (event.logicalKey) {
+        case LogicalKeyboardKey.arrowUp:
+        case LogicalKeyboardKey.keyW:
+          notifier.changeDirection(Direction.up);
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.arrowDown:
+        case LogicalKeyboardKey.keyS:
+          notifier.changeDirection(Direction.down);
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.arrowLeft:
+        case LogicalKeyboardKey.keyA:
+          notifier.changeDirection(Direction.left);
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.arrowRight:
+        case LogicalKeyboardKey.keyD:
+          notifier.changeDirection(Direction.right);
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.space:
+          notifier.startBoost();
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.keyP:
+        case LogicalKeyboardKey.escape:
+          final status = ref.read(gameProvider).status;
+          if (status == GameStatus.playing) {
+            notifier.pauseGame();
+          } else if (status == GameStatus.paused) {
+            notifier.resumeGame();
+          }
+          return KeyEventResult.handled;
+        default:
+          return KeyEventResult.ignored;
+      }
+    } else if (event is KeyUpEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.space) {
+        notifier.stopBoost();
         return KeyEventResult.handled;
-      case LogicalKeyboardKey.arrowDown:
-      case LogicalKeyboardKey.keyS:
-        notifier.changeDirection(Direction.down);
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.arrowLeft:
-      case LogicalKeyboardKey.keyA:
-        notifier.changeDirection(Direction.left);
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.arrowRight:
-      case LogicalKeyboardKey.keyD:
-        notifier.changeDirection(Direction.right);
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.space:
-        final status = ref.read(gameProvider).status;
-        if (status == GameStatus.playing) {
-          notifier.pauseGame();
-        } else if (status == GameStatus.paused) {
-          notifier.resumeGame();
-        }
-        return KeyEventResult.handled;
-      default:
-        return KeyEventResult.ignored;
+      }
     }
+    return KeyEventResult.ignored;
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -127,6 +137,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
           gameState.highScore,
           coinsEarned: gameState.coinsEarned,
           maxCombo: gameState.maxCombo,
+          kills: gameState.kills,
+          goldCollected: gameState.goldCollected,
           gameMode: gameState.gameMode,
         );
       });
@@ -206,6 +218,37 @@ class _GameScreenState extends ConsumerState<GameScreen>
                       onResume: () =>
                           ref.read(gameProvider.notifier).resumeGame(),
                     ),
+
+                  // Kill feed overlay (top-right)
+                  if (gameState.killFeed.isNotEmpty)
+                    Positioned(
+                      top: 80,
+                      right: 16,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: gameState.killFeed
+                            .map((msg) => Container(
+                                  margin: const EdgeInsets.only(bottom: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black87,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                        color: AppColors.neonPink
+                                            .withOpacity(0.5)),
+                                  ),
+                                  child: Text(
+                                    msg,
+                                    style: GoogleFonts.pressStart2p(
+                                      fontSize: 6,
+                                      color: AppColors.neonPink,
+                                    ),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -215,7 +258,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
     );
   }
 
-  /// Combined HUD showing score, combo, timer, and mode info.
+  /// Combined HUD showing score, combo, timer, kills, gold, and mode info.
   Widget _buildHUD(GameState gameState) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -246,8 +289,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 color: AppColors.neonPurple,
               ),
 
-              // Timer for Time Attack
-              if (gameState.gameMode == GameMode.timeAttack)
+              // Timer for timed modes
+              if (gameState.timeRemaining > 0)
                 _HUDBadge(
                   label: 'TIME',
                   value: '${gameState.timeRemaining}s',
@@ -256,20 +299,36 @@ class _GameScreenState extends ConsumerState<GameScreen>
                       : AppColors.neonBlue,
                 ),
 
+              // Kill counter
+              if (gameState.kills > 0)
+                _HUDBadge(
+                  label: 'KILLS',
+                  value: '${gameState.kills}',
+                  color: AppColors.neonPink,
+                ),
+
+              // Gold collected (Gold Rush)
+              if (gameState.gameMode == GameMode.goldRush)
+                _HUDBadge(
+                  label: 'GOLD',
+                  value: '${gameState.goldCollected}',
+                  color: const Color(0xFFFFD700),
+                ),
+
+              // Boost indicator
+              if (gameState.isBoosting)
+                _HUDBadge(
+                  label: 'BOOST',
+                  value: '⚡',
+                  color: AppColors.neonOrange,
+                ),
+
               // Coins earned
               if (gameState.coinsEarned > 0)
                 _HUDBadge(
                   label: 'COINS',
                   value: '+${gameState.coinsEarned}',
                   color: AppColors.neonYellow,
-                ),
-
-              // Food type indicator
-              if (gameState.foodItem.type != gameState.foodItem.type)
-                _HUDBadge(
-                  label: gameState.foodItem.type.label,
-                  value: gameState.foodItem.type.emoji,
-                  color: gameState.foodItem.type.color,
                 ),
             ],
           ),

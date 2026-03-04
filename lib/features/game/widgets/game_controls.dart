@@ -8,14 +8,15 @@ import '../providers/game_provider.dart';
 
 /// On-screen D-pad directional controls for mobile gameplay.
 ///
-/// Buttons are arranged in a cross pattern. Each tap triggers
-/// haptic feedback and queues a direction change in [GameNotifier].
+/// Buttons are arranged in a cross pattern with a BOOST button in the centre.
+/// Each tap triggers haptic feedback and queues a direction change in [GameNotifier].
 class GameControls extends ConsumerWidget {
   const GameControls({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(gameProvider.notifier);
+    final gameState = ref.watch(gameProvider);
 
     Widget dirButton(Direction dir, IconData icon) {
       return Material(
@@ -49,6 +50,50 @@ class GameControls extends ConsumerWidget {
       );
     }
 
+    // Boost button: hold to boost, glow when active.
+    Widget boostButton() {
+      final canBoost = gameState.snake.length > 4;
+      final boosting = gameState.isBoosting;
+      final boostColor = boosting
+          ? AppColors.neonOrange
+          : (canBoost ? AppColors.neonYellow : Colors.grey);
+
+      return GestureDetector(
+        onTapDown: canBoost ? (_) => notifier.startBoost() : null,
+        onTapUp: (_) => notifier.stopBoost(),
+        onTapCancel: () => notifier.stopBoost(),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: boosting
+                ? boostColor.withOpacity(0.3)
+                : AppColors.darkCard.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: boostColor.withOpacity(boosting ? 0.8 : 0.3),
+              width: boosting ? 2 : 1,
+            ),
+            boxShadow: boosting
+                ? [
+                    BoxShadow(
+                      color: boostColor.withOpacity(0.4),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : [],
+          ),
+          child: Icon(
+            Icons.bolt_rounded,
+            color: boostColor,
+            size: 24,
+          ),
+        ),
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -58,7 +103,9 @@ class GameControls extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             dirButton(Direction.left, Icons.keyboard_arrow_left),
-            const SizedBox(width: 64),
+            const SizedBox(width: 4),
+            boostButton(),
+            const SizedBox(width: 4),
             dirButton(Direction.right, Icons.keyboard_arrow_right),
           ],
         ),

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../economy/providers/player_profile_provider.dart';
 import '../../skins/models/snake_skin.dart';
+import '../models/game_mode.dart';
+import '../models/map_theme.dart';
 import '../providers/game_provider.dart';
 import 'snake_painter.dart';
 
@@ -42,25 +44,22 @@ class _GameBoardState extends ConsumerState<GameBoard>
     final profile = ref.watch(playerProfileProvider);
     final skin = SnakeSkins.fromId(profile.equippedSkinId);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = MapThemes.fromId(gameState.mapThemeId);
 
     return RepaintBoundary(
       child: AspectRatio(
         aspectRatio: 1.0,
         child: Container(
           decoration: BoxDecoration(
-            color: isDark
-                ? Colors.black.withOpacity(0.4)
-                : Colors.white.withOpacity(0.3),
+            color: theme.backgroundColor.withOpacity(0.6),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isDark
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.1),
+              color: theme.borderGlowColor.withOpacity(0.2),
               width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: skin.glowColor.withOpacity(0.1),
+                color: theme.borderGlowColor.withOpacity(0.1),
                 blurRadius: 20,
                 spreadRadius: 2,
               ),
@@ -81,8 +80,15 @@ class _GameBoardState extends ConsumerState<GameBoard>
                     isDarkMode: isDark,
                     skin: skin,
                     obstacles: gameState.obstacles,
-                    aiSnake: gameState.aiSnake,
-                    aiDirection: gameState.aiDirection,
+                    aiSnakes: gameState.aiSnakes,
+                    aiDirections: gameState.aiDirections,
+                    deathPellets: gameState.deathPellets,
+                    goldCoins: gameState.goldCoins,
+                    isBoosting: gameState.isBoosting,
+                    boundaryRadius: gameState.boundaryRadius,
+                    showBoundary:
+                        gameState.gameMode == GameMode.battleRoyale,
+                    mapTheme: theme,
                   ),
                 );
               },

@@ -17,6 +17,10 @@ class ActiveEffect {
   const ActiveEffect({required this.type, required this.expiresAt});
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
+
+  /// Returns remaining seconds (clamped to 0).
+  int get remainingSeconds =>
+      expiresAt.difference(DateTime.now()).inSeconds.clamp(0, 999);
 }
 
 /// Immutable snapshot of the entire game state at a single point in time.
@@ -66,17 +70,11 @@ class GameState {
   /// Coins collected this game session.
   final int coinsEarned;
 
-  /// Time remaining in Time Attack (seconds, -1 = unlimited).
+  /// Time remaining in Time Attack / Gold Rush (seconds, -1 = unlimited).
   final int timeRemaining;
 
   /// Obstacle positions (Survival / Adventure modes).
   final List<Position> obstacles;
-
-  /// AI snake body positions (AI Battle mode).
-  final List<Position> aiSnake;
-
-  /// AI snake movement direction.
-  final Direction aiDirection;
 
   /// Active power-up effects.
   final List<ActiveEffect> activeEffects;
@@ -86,6 +84,59 @@ class GameState {
 
   /// Whether screen shake is currently active.
   final bool screenShake;
+
+  // ── Multi-AI fields ────────────────────────────────────────────────────────
+
+  /// Multiple AI snake bodies — legacy [aiSnake] is now `aiSnakes[0]`.
+  final List<List<Position>> aiSnakes;
+
+  /// Directions for each AI snake.
+  final List<Direction> aiDirections;
+
+  /// Legacy single-AI compatibility accessors.
+  List<Position> get aiSnake =>
+      aiSnakes.isNotEmpty ? aiSnakes.first : const [];
+  Direction get aiDirection =>
+      aiDirections.isNotEmpty ? aiDirections.first : Direction.right;
+
+  // ── Boost ──────────────────────────────────────────────────────────────────
+
+  /// Whether the player is currently boosting (hold-to-boost).
+  final bool isBoosting;
+
+  /// Internal tick counter for boost shrink timing.
+  final int boostTickCounter;
+
+  // ── Kill & death pellets ───────────────────────────────────────────────────
+
+  /// Number of AI snakes eliminated this game.
+  final int kills;
+
+  /// Death pellets dropped by dead AI snakes.
+  final List<Position> deathPellets;
+
+  // ── Map theme ──────────────────────────────────────────────────────────────
+
+  /// ID of the visual arena theme.
+  final String mapThemeId;
+
+  // ── Battle Royale ──────────────────────────────────────────────────────────
+
+  /// Current safe-zone radius in cells (shrinks over time).
+  final int boundaryRadius;
+
+  // ── Gold Rush ──────────────────────────────────────────────────────────────
+
+  /// Scattered gold coins for Gold Rush mode.
+  final List<Position> goldCoins;
+
+  /// Gold coins collected this session.
+  final int goldCollected;
+
+  // ── Kill Feed ──────────────────────────────────────────────────────────────
+
+  /// Recent kill feed messages shown briefly on screen.
+  final List<String> killFeed;
 
   const GameState({
     required this.snake,
@@ -103,11 +154,20 @@ class GameState {
     this.coinsEarned = 0,
     this.timeRemaining = -1,
     this.obstacles = const [],
-    this.aiSnake = const [],
-    this.aiDirection = Direction.right,
     this.activeEffects = const [],
     this.countdownValue = 3,
     this.screenShake = false,
+    this.aiSnakes = const [],
+    this.aiDirections = const [],
+    this.isBoosting = false,
+    this.boostTickCounter = 0,
+    this.kills = 0,
+    this.deathPellets = const [],
+    this.mapThemeId = 'neonNight',
+    this.boundaryRadius = 10,
+    this.goldCoins = const [],
+    this.goldCollected = 0,
+    this.killFeed = const [],
   });
 
   /// Factory that creates the starting state with the snake centred on
@@ -118,6 +178,7 @@ class GameState {
     bool boundaryWrap = false,
     GameMode gameMode = GameMode.classic,
     int timeRemaining = -1,
+    String mapThemeId = 'neonNight',
   }) {
     final centerX = GameConstants.gridWidth ~/ 2;
     final centerY = GameConstants.gridHeight ~/ 2;
@@ -130,13 +191,58 @@ class GameState {
 
     final foodPos = _randomFood(snake, const []);
 
-    // AI snake spawns in the opposite quadrant.
-    final aiSnake = gameMode == GameMode.aiBattle
-        ? List<Position>.generate(
-            GameConstants.initialSnakeLength,
-            (i) => Position(centerX + i, centerY - 4),
-          )
-        : <Position>[];
+    // Spawn multiple AI snakes for AI Battle and Battle Royale modes.
+    final needsAI = gameMode == GameMode.aiBattle ||
+        gameMode == GameMode.battleRoyale;
+    final aiCount = gameMode == GameMode.battleRoyale
+        ? 4
+        : (gameMode == GameMode.aiBattle ? 3 : 0);
+
+    final aiSnakes = <List<Position>>[];
+    final aiDirs = <Direction>[];
+    if (needsAI) {
+      // Spawn positions in different quadrants.
+      final spawnPoints = [
+        (centerX + 5, centerY - 5, Direction.left),
+        (2, 2, Direction.right),
+        (GameConstants.gridWidth - 3, GameConstants.gridHeight - 3,
+            Direction.left),
+        (2, GameConstants.gridHeight - 3, Direction.right),
+      ];
+      for (int i = 0; i < aiCount; i++) {
+        final sp = spawnPoints[i % spawnPoints.length];
+        final aiBody = List<Position>.generate(
+          GameConstants.initialSnakeLength,
+          (j) => Position(
+            (sp.$1 + (sp.$3 == Direction.left ? j : -j))
+                .clamp(0, GameConstants.gridWidth - 1),
+            sp.$2,
+          ),
+        );
+        aiSnakes.add(aiBody);
+        aiDirs.add(sp.$3);
+      }
+    }
+
+    // Gold Rush: scatter gold coins.
+    final goldCoins = <Position>[];
+    if (gameMode == GameMode.goldRush) {
+      final rng = Random();
+      final occupied = <Position>{...snake};
+      for (int i = 0; i < 15; i++) {
+        Position p;
+        int attempts = 0;
+        do {
+          p = Position(
+            rng.nextInt(GameConstants.gridWidth),
+            rng.nextInt(GameConstants.gridHeight),
+          );
+          attempts++;
+        } while (occupied.contains(p) && attempts < 200);
+        goldCoins.add(p);
+        occupied.add(p);
+      }
+    }
 
     return GameState(
       snake: snake,
@@ -149,8 +255,11 @@ class GameState {
       boundaryWrap: boundaryWrap,
       gameMode: gameMode,
       timeRemaining: timeRemaining,
-      aiSnake: aiSnake,
-      aiDirection: Direction.left,
+      aiSnakes: aiSnakes,
+      aiDirections: aiDirs,
+      mapThemeId: mapThemeId,
+      boundaryRadius: gameMode == GameMode.battleRoyale ? 10 : 10,
+      goldCoins: goldCoins,
     );
   }
 
@@ -199,11 +308,20 @@ class GameState {
     int? coinsEarned,
     int? timeRemaining,
     List<Position>? obstacles,
-    List<Position>? aiSnake,
-    Direction? aiDirection,
     List<ActiveEffect>? activeEffects,
     int? countdownValue,
     bool? screenShake,
+    List<List<Position>>? aiSnakes,
+    List<Direction>? aiDirections,
+    bool? isBoosting,
+    int? boostTickCounter,
+    int? kills,
+    List<Position>? deathPellets,
+    String? mapThemeId,
+    int? boundaryRadius,
+    List<Position>? goldCoins,
+    int? goldCollected,
+    List<String>? killFeed,
   }) {
     return GameState(
       snake: snake ?? this.snake,
@@ -223,11 +341,20 @@ class GameState {
       coinsEarned: coinsEarned ?? this.coinsEarned,
       timeRemaining: timeRemaining ?? this.timeRemaining,
       obstacles: obstacles ?? this.obstacles,
-      aiSnake: aiSnake ?? this.aiSnake,
-      aiDirection: aiDirection ?? this.aiDirection,
       activeEffects: activeEffects ?? this.activeEffects,
       countdownValue: countdownValue ?? this.countdownValue,
       screenShake: screenShake ?? this.screenShake,
+      aiSnakes: aiSnakes ?? this.aiSnakes,
+      aiDirections: aiDirections ?? this.aiDirections,
+      isBoosting: isBoosting ?? this.isBoosting,
+      boostTickCounter: boostTickCounter ?? this.boostTickCounter,
+      kills: kills ?? this.kills,
+      deathPellets: deathPellets ?? this.deathPellets,
+      mapThemeId: mapThemeId ?? this.mapThemeId,
+      boundaryRadius: boundaryRadius ?? this.boundaryRadius,
+      goldCoins: goldCoins ?? this.goldCoins,
+      goldCollected: goldCollected ?? this.goldCollected,
+      killFeed: killFeed ?? this.killFeed,
     );
   }
 }

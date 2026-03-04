@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,9 @@ import 'shared/services/storage_service.dart';
 /// widget tree inside a [ProviderScope] with concrete overrides.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Silence audioplayers console noise (format errors for missing/stub assets).
+  AudioLogger.logLevel = AudioLogLevel.none;
 
   // Lock to portrait on mobile (no-op on web / desktop).
   await SystemChrome.setPreferredOrientations([

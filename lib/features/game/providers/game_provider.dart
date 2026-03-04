@@ -19,10 +19,12 @@ import '../models/position.dart';
 class GameLaunchConfig {
   final GameMode mode;
   final int timeAttackSeconds;
+  final String mapThemeId;
 
   const GameLaunchConfig({
     this.mode = GameMode.classic,
     this.timeAttackSeconds = 60,
+    this.mapThemeId = 'neonNight',
   });
 }
 
@@ -34,17 +36,20 @@ final gameLaunchConfigProvider = StateProvider<GameLaunchConfig>(
 /// Central game-logic controller.
 ///
 /// Drives the game loop via [Timer.periodic], manages snake movement,
-/// collision detection, scoring, speed scaling, combo system, AI opponent,
-/// special food effects, and countdown sequence.
+/// collision detection, scoring, speed scaling, combo system, AI opponents,
+/// special food effects, boost mechanic, death pellets, battle royale
+/// shrinking boundary, gold rush mode, and countdown sequence.
 class GameNotifier extends StateNotifier<GameState> {
   Timer? _gameTimer;
   Timer? _countdownTimer;
   Timer? _clockTimer;
+  Timer? _shrinkTimer;
   final AudioService _audio;
   final StorageService _storage;
   final Random _random = Random();
   final Ref _ref;
   int _comboTimer = 0;
+  int _killFeedClearTimer = 0;
 
   GameNotifier(this._ref, this._audio, this._storage)
       : super(
@@ -77,11 +82,18 @@ class GameNotifier extends StateNotifier<GameState> {
     final speed = _speedForDifficulty(settings.difficulty);
     final config = _ref.read(gameLaunchConfigProvider);
     final gameMode = mode ?? config.mode;
-    final timeRemaining = gameMode == GameMode.timeAttack
-        ? config.timeAttackSeconds
-        : -1;
+
+    int timeRemaining = -1;
+    if (gameMode == GameMode.timeAttack) {
+      timeRemaining = config.timeAttackSeconds;
+    } else if (gameMode == GameMode.goldRush) {
+      timeRemaining = 60;
+    } else if (gameMode == GameMode.battleRoyale) {
+      timeRemaining = 90;
+    }
 
     _comboTimer = 0;
+    _killFeedClearTimer = 0;
     _cancelAllTimers();
 
     state = GameState.initial(
@@ -90,6 +102,7 @@ class GameNotifier extends StateNotifier<GameState> {
       boundaryWrap: settings.boundaryWrap,
       gameMode: gameMode,
       timeRemaining: timeRemaining,
+      mapThemeId: config.mapThemeId,
     ).copyWith(status: GameStatus.countdown, countdownValue: 3);
 
     // Cinematic countdown: 3…2…1…GO!
@@ -110,13 +123,19 @@ class GameNotifier extends StateNotifier<GameState> {
       );
       _startTimer();
 
-      // Start clock for Time Attack.
-      if (state.gameMode == GameMode.timeAttack) {
+      // Start clock for timed modes.
+      if (state.gameMode == GameMode.timeAttack ||
+          state.gameMode == GameMode.goldRush ||
+          state.gameMode == GameMode.battleRoyale) {
         _startClock();
       }
       // Spawn initial obstacles for Survival.
       if (state.gameMode == GameMode.survival) {
         _spawnObstacles(3);
+      }
+      // Start boundary shrink for Battle Royale.
+      if (state.gameMode == GameMode.battleRoyale) {
+        _startBoundaryShrink();
       }
     } else {
       state = state.copyWith(countdownValue: next);
@@ -128,6 +147,7 @@ class GameNotifier extends StateNotifier<GameState> {
     if (state.status != GameStatus.playing) return;
     _gameTimer?.cancel();
     _clockTimer?.cancel();
+    _shrinkTimer?.cancel();
     state = state.copyWith(status: GameStatus.paused);
   }
 
@@ -136,8 +156,11 @@ class GameNotifier extends StateNotifier<GameState> {
     if (state.status != GameStatus.paused) return;
     state = state.copyWith(status: GameStatus.playing);
     _startTimer();
-    if (state.gameMode == GameMode.timeAttack && state.timeRemaining > 0) {
+    if (state.timeRemaining > 0) {
       _startClock();
+    }
+    if (state.gameMode == GameMode.battleRoyale) {
+      _startBoundaryShrink();
     }
   }
 
@@ -147,6 +170,19 @@ class GameNotifier extends StateNotifier<GameState> {
     final current = state.bufferedDirection ?? state.direction;
     if (newDirection == current.opposite) return;
     state = state.copyWith(bufferedDirection: () => newDirection);
+  }
+
+  /// Activates speed boost (slither.io style — snake shrinks while boosting).
+  void startBoost() {
+    if (state.status != GameStatus.playing) return;
+    if (state.snake.length <= 4) return;
+    state = state.copyWith(isBoosting: true);
+  }
+
+  /// Deactivates speed boost.
+  void stopBoost() {
+    if (!state.isBoosting) return;
+    state = state.copyWith(isBoosting: false, boostTickCounter: 0);
   }
 
   // ── Game Loop ──────────────────────────────────────────────────────────────
@@ -159,12 +195,23 @@ class GameNotifier extends StateNotifier<GameState> {
     final liveEffects =
         state.activeEffects.where((e) => !e.isExpired).toList();
 
-    // Compute effective speed (with freeze / speed-boost).
+    // Kill feed clearing.
+    if (state.killFeed.isNotEmpty) {
+      _killFeedClearTimer++;
+      if (_killFeedClearTimer > 15) {
+        state = state.copyWith(killFeed: []);
+        _killFeedClearTimer = 0;
+      }
+    }
+
+    // Compute effective speed.
     int effectiveSpeed = state.speed;
     if (liveEffects.any((e) => e.type == FoodType.freeze)) {
-      effectiveSpeed = (effectiveSpeed * 1.8).round(); // slower
+      effectiveSpeed = (effectiveSpeed * 1.8).round();
+    } else if (state.isBoosting) {
+      effectiveSpeed = (effectiveSpeed * 0.5).round();
     } else if (liveEffects.any((e) => e.type == FoodType.speedBoost)) {
-      effectiveSpeed = (effectiveSpeed * 0.65).round(); // faster
+      effectiveSpeed = (effectiveSpeed * 0.65).round();
     }
 
     // 1. Resolve direction.
@@ -175,8 +222,11 @@ class GameNotifier extends StateNotifier<GameState> {
     final offset = direction.offset;
     var newHead = head.move(offset.dx, offset.dy);
 
+    final hasShield = liveEffects.any((e) => e.type == FoodType.shield);
+    final hasGhost = liveEffects.any((e) => e.type == FoodType.ghost);
+
     // 3. Handle boundaries.
-    if (state.boundaryWrap) {
+    if (hasGhost || state.boundaryWrap) {
       final wrappedX = ((newHead.x % GameConstants.gridWidth) +
               GameConstants.gridWidth) %
           GameConstants.gridWidth;
@@ -185,17 +235,39 @@ class GameNotifier extends StateNotifier<GameState> {
           GameConstants.gridHeight;
       newHead = Position(wrappedX, wrappedY);
     } else {
-      if (newHead.x < 0 ||
+      if (state.gameMode == GameMode.battleRoyale) {
+        final cx = GameConstants.gridWidth ~/ 2;
+        final cy = GameConstants.gridHeight ~/ 2;
+        final br = state.boundaryRadius;
+        if (newHead.x < cx - br ||
+            newHead.x > cx + br ||
+            newHead.y < cy - br ||
+            newHead.y > cy + br) {
+          if (!hasShield) {
+            _gameOver();
+            return;
+          }
+        }
+      } else if (newHead.x < 0 ||
           newHead.x >= GameConstants.gridWidth ||
           newHead.y < 0 ||
           newHead.y >= GameConstants.gridHeight) {
-        _gameOver();
-        return;
+        if (!hasShield) {
+          _gameOver();
+          return;
+        }
+        final wrappedX = ((newHead.x % GameConstants.gridWidth) +
+                GameConstants.gridWidth) %
+            GameConstants.gridWidth;
+        final wrappedY = ((newHead.y % GameConstants.gridHeight) +
+                GameConstants.gridHeight) %
+            GameConstants.gridHeight;
+        newHead = Position(wrappedX, wrappedY);
       }
     }
 
     // 4. Obstacle collision.
-    if (state.obstacles.contains(newHead)) {
+    if (!hasShield && !hasGhost && state.obstacles.contains(newHead)) {
       _gameOver();
       return;
     }
@@ -206,22 +278,59 @@ class GameNotifier extends StateNotifier<GameState> {
         ? state.snake
         : state.snake.sublist(0, state.snake.length - 1);
 
-    if (bodyToCheck.contains(newHead)) {
+    if (!hasShield && !hasGhost && bodyToCheck.contains(newHead)) {
       _gameOver();
       return;
     }
 
-    // 6. AI collision (only in AI Battle).
-    if (state.gameMode == GameMode.aiBattle &&
-        state.aiSnake.contains(newHead)) {
-      _gameOver();
-      return;
+    // 6. AI collision check.
+    for (final ai in state.aiSnakes) {
+      if (ai.contains(newHead)) {
+        if (!hasShield) {
+          _gameOver();
+          return;
+        }
+      }
     }
 
     // 7. Build new snake body.
     final newSnake = [newHead, ...state.snake];
-    if (!willEat) {
+
+    // Check death pellet eating.
+    bool ateDeathPellet = false;
+    var newDeathPellets = List<Position>.from(state.deathPellets);
+    if (newDeathPellets.contains(newHead)) {
+      ateDeathPellet = true;
+      newDeathPellets.remove(newHead);
+    }
+
+    // Check gold coin eating (Gold Rush).
+    bool ateGold = false;
+    var newGoldCoins = List<Position>.from(state.goldCoins);
+    int newGoldCollected = state.goldCollected;
+    if (newGoldCoins.contains(newHead)) {
+      ateGold = true;
+      newGoldCoins.remove(newHead);
+      newGoldCollected++;
+    }
+
+    if (!willEat && !ateDeathPellet && !ateGold) {
       newSnake.removeLast();
+    }
+
+    // Boost shrink: lose 1 tail segment every 3 boost ticks.
+    int newBoostTick = state.boostTickCounter;
+    if (state.isBoosting && newSnake.length > 4) {
+      newBoostTick++;
+      if (newBoostTick >= 3) {
+        newSnake.removeLast();
+        newBoostTick = 0;
+      }
+    }
+    bool stillBoosting = state.isBoosting;
+    if (stillBoosting && newSnake.length <= 4) {
+      stillBoosting = false;
+      newBoostTick = 0;
     }
 
     // 8. Handle scoring, combos & food effects.
@@ -233,28 +342,45 @@ class GameNotifier extends StateNotifier<GameState> {
     var newEffects = List<ActiveEffect>.from(liveEffects);
     bool triggerShake = false;
     FoodItem newFoodItem = state.foodItem;
+    var newKillFeed = List<String>.from(state.killFeed);
+
+    if (ateDeathPellet) {
+      newScore += 5;
+      newCoins += 1;
+      _audio.playEat();
+    }
+
+    if (ateGold) {
+      newScore += 25;
+      newCoins += 5;
+      _audio.playEat();
+      if (state.gameMode == GameMode.goldRush) {
+        final p = _randomFreePosition(newSnake, state.obstacles);
+        if (p != null) newGoldCoins.add(p);
+      }
+    }
 
     if (willEat) {
       final foodType = state.foodItem.type;
 
-      // Combo system: eating quickly builds combo.
       if (_comboTimer > 0) {
         newCombo++;
       } else {
         newCombo = 1;
       }
-      _comboTimer = 8; // ticks until combo resets
+      _comboTimer = 8;
       if (newCombo > newMaxCombo) newMaxCombo = newCombo;
 
-      // Calculate points with multiplier.
       final multiplier = state.scoreMultiplier;
       newScore += foodType.basePoints * multiplier;
 
-      // Apply food-type specific effects.
       switch (foodType) {
         case FoodType.speedBoost:
         case FoodType.freeze:
         case FoodType.rainbow:
+        case FoodType.magnet:
+        case FoodType.shield:
+        case FoodType.ghost:
           newEffects.add(ActiveEffect(
             type: foodType,
             expiresAt: DateTime.now().add(foodType.duration),
@@ -262,48 +388,114 @@ class GameNotifier extends StateNotifier<GameState> {
         case FoodType.coinBonus:
           newCoins += 10;
         case FoodType.bomb:
-          // Remove last 3 tail segments (don't shrink below 3).
           if (newSnake.length > 3) {
             final removeCount = min(3, newSnake.length - 3);
-            newSnake.removeRange(newSnake.length - removeCount, newSnake.length);
+            newSnake.removeRange(
+                newSnake.length - removeCount, newSnake.length);
           }
           triggerShake = true;
+        case FoodType.goldCoin:
+          newCoins += 5;
+          newGoldCollected++;
         case FoodType.normal:
           break;
       }
 
-      // Speed scaling.
       newSpeed = (state.speed - GameConstants.speedIncrement)
           .clamp(GameConstants.minSpeed, state.speed);
 
-      // Spawn new food (weighted type).
       newFoodItem = _generateFoodItem(newSnake, state.obstacles);
       _audio.playEat();
-
-      // Coins from scoring.
       newCoins += (foodType.basePoints * multiplier / 10).floor();
     }
 
-    // Combo decay.
+    // Magnet effect: move food toward snake head.
+    if (newEffects.any((e) => e.type == FoodType.magnet && !e.isExpired)) {
+      final fPos = newFoodItem.position;
+      final sHead = newSnake.first;
+      int fx = fPos.x;
+      int fy = fPos.y;
+      if (fx < sHead.x) fx++;
+      if (fx > sHead.x) fx--;
+      if (fy < sHead.y) fy++;
+      if (fy > sHead.y) fy--;
+      newFoodItem = newFoodItem.copyWith(position: Position(fx, fy));
+    }
+
     if (_comboTimer > 0) {
       _comboTimer--;
     } else if (state.combo > 0) {
       newCombo = 0;
     }
 
-    // 9. AI snake movement.
-    List<Position> newAiSnake = state.aiSnake;
-    Direction newAiDir = state.aiDirection;
-    if (state.gameMode == GameMode.aiBattle && state.aiSnake.isNotEmpty) {
-      final aiResult = _moveAI(state.aiSnake, state.aiDirection, state.food);
-      newAiSnake = aiResult.$1;
-      newAiDir = aiResult.$2;
+    // 9. Multi-AI snake movement.
+    var newAiSnakes = List<List<Position>>.from(
+        state.aiSnakes.map((s) => List<Position>.from(s)));
+    var newAiDirs = List<Direction>.from(state.aiDirections);
+    int newKills = state.kills;
+
+    if (state.aiSnakes.isNotEmpty) {
+      for (int i = newAiSnakes.length - 1; i >= 0; i--) {
+        if (newAiSnakes[i].isEmpty) continue;
+
+        final aiResult = _moveAI(
+          newAiSnakes[i],
+          newAiDirs[i],
+          state.food,
+          newSnake,
+          state.obstacles,
+          newDeathPellets,
+          i,
+          newAiSnakes,
+        );
+        newAiSnakes[i] = aiResult.$1;
+        newAiDirs[i] = aiResult.$2;
+
+        final aiHead =
+            newAiSnakes[i].isNotEmpty ? newAiSnakes[i].first : null;
+        if (aiHead != null && newSnake.contains(aiHead)) {
+          newKills++;
+          _addDeathPellets(newAiSnakes[i], newDeathPellets);
+          newKillFeed.add('You eliminated Snake #${i + 1}!');
+          _killFeedClearTimer = 0;
+          newAiSnakes[i] = [];
+          triggerShake = true;
+        }
+
+        if (aiHead != null) {
+          for (int j = 0; j < newAiSnakes.length; j++) {
+            if (j == i || newAiSnakes[j].isEmpty) continue;
+            if (newAiSnakes[j].contains(aiHead)) {
+              _addDeathPellets(newAiSnakes[i], newDeathPellets);
+              newKillFeed.add('Snake #${j + 1} eliminated #${i + 1}');
+              _killFeedClearTimer = 0;
+              newAiSnakes[i] = [];
+              break;
+            }
+          }
+        }
+
+        if (aiHead != null && aiHead == newFoodItem.position) {
+          newFoodItem = _generateFoodItem(newSnake, state.obstacles);
+        }
+
+        if (aiHead != null && newDeathPellets.contains(aiHead)) {
+          newDeathPellets.remove(aiHead);
+        }
+      }
+
+      if (state.gameMode == GameMode.battleRoyale) {
+        final aliveAIs = newAiSnakes.where((s) => s.isNotEmpty).length;
+        if (aliveAIs == 0) {
+          newScore += 100;
+          newKillFeed.add('🏆 VICTORY ROYALE!');
+        }
+      }
     }
 
     // 10. Survival mode: spawn obstacles periodically.
     List<Position> newObstacles = state.obstacles;
     if (state.gameMode == GameMode.survival && willEat) {
-      // Add an obstacle every 3 foods eaten.
       final foodsEaten = (newScore / GameConstants.pointsPerFood).floor();
       if (foodsEaten > 0 && foodsEaten % 3 == 0) {
         final obs = _randomFreePosition(newSnake, newObstacles);
@@ -326,12 +518,21 @@ class GameNotifier extends StateNotifier<GameState> {
         coinsEarned: newCoins,
         activeEffects: newEffects,
         screenShake: triggerShake,
-        aiSnake: newAiSnake,
-        aiDirection: newAiDir,
+        aiSnakes: newAiSnakes,
+        aiDirections: newAiDirs,
         obstacles: newObstacles,
+        isBoosting: stillBoosting,
+        boostTickCounter: newBoostTick,
+        kills: newKills,
+        deathPellets: newDeathPellets,
+        goldCoins: newGoldCoins,
+        goldCollected: newGoldCollected,
+        killFeed: newKillFeed,
       );
       _gameTimer = Timer.periodic(
-        Duration(milliseconds: effectiveSpeed.clamp(GameConstants.minSpeed, 500)),
+        Duration(
+            milliseconds:
+                effectiveSpeed.clamp(GameConstants.minSpeed, 500)),
         (_) => _tick(),
       );
       return;
@@ -350,12 +551,18 @@ class GameNotifier extends StateNotifier<GameState> {
       coinsEarned: newCoins,
       activeEffects: newEffects,
       screenShake: triggerShake,
-      aiSnake: newAiSnake,
-      aiDirection: newAiDir,
+      aiSnakes: newAiSnakes,
+      aiDirections: newAiDirs,
       obstacles: newObstacles,
+      isBoosting: stillBoosting,
+      boostTickCounter: newBoostTick,
+      kills: newKills,
+      deathPellets: newDeathPellets,
+      goldCoins: newGoldCoins,
+      goldCollected: newGoldCollected,
+      killFeed: newKillFeed,
     );
 
-    // Clear screen shake after one frame.
     if (triggerShake) {
       Future.delayed(const Duration(milliseconds: 200), () {
         if (mounted) state = state.copyWith(screenShake: false);
@@ -365,12 +572,43 @@ class GameNotifier extends StateNotifier<GameState> {
 
   // ── AI Logic ───────────────────────────────────────────────────────────────
 
-  /// Simple greedy AI: moves toward food, avoids walls and itself.
+  /// Smart AI: moves toward food, avoids walls/obstacles/other snakes.
   (List<Position>, Direction) _moveAI(
-      List<Position> aiSnake, Direction aiDir, Position food) {
+    List<Position> aiSnake,
+    Direction aiDir,
+    Position food,
+    List<Position> playerSnake,
+    List<Position> obstacles,
+    List<Position> deathPellets,
+    int aiIndex,
+    List<List<Position>> allAiSnakes,
+  ) {
+    if (aiSnake.isEmpty) return (aiSnake, aiDir);
+
     final head = aiSnake.first;
 
-    // Try all directions, prefer heading toward food.
+    // Prefer death pellets if nearby (within 5 cells).
+    Position target = food;
+    if (deathPellets.isNotEmpty) {
+      Position? closestPellet;
+      int closestDist = 999;
+      for (final p in deathPellets) {
+        final d = (p.x - head.x).abs() + (p.y - head.y).abs();
+        if (d < closestDist && d <= 5) {
+          closestDist = d;
+          closestPellet = p;
+        }
+      }
+      if (closestPellet != null) target = closestPellet;
+    }
+
+    // Build collision set.
+    final avoid = <Position>{...playerSnake, ...obstacles};
+    for (int j = 0; j < allAiSnakes.length; j++) {
+      if (j != aiIndex) avoid.addAll(allAiSnakes[j]);
+    }
+    avoid.addAll(aiSnake.skip(1));
+
     final candidates = <Direction, int>{};
     for (final d in Direction.values) {
       if (d == aiDir.opposite) continue;
@@ -383,16 +621,12 @@ class GameNotifier extends StateNotifier<GameState> {
                 GameConstants.gridHeight) %
             GameConstants.gridHeight,
       );
-      // Avoid self-collision and player collision.
-      if (aiSnake.contains(next) || state.snake.contains(next)) continue;
-      if (state.obstacles.contains(next)) continue;
-      // Manhattan distance to food.
-      final dist = (next.x - food.x).abs() + (next.y - food.y).abs();
+      if (avoid.contains(next)) continue;
+      final dist = (next.x - target.x).abs() + (next.y - target.y).abs();
       candidates[d] = dist;
     }
 
     if (candidates.isEmpty) {
-      // Stuck — just keep going.
       final off = aiDir.offset;
       final nextHead = Position(
         ((head.x + off.dx.toInt()) % GameConstants.gridWidth +
@@ -405,7 +639,6 @@ class GameNotifier extends StateNotifier<GameState> {
       return ([nextHead, ...aiSnake]..removeLast(), aiDir);
     }
 
-    // Pick direction with shortest distance to food.
     final bestDir = candidates.entries
         .reduce((a, b) => a.value < b.value ? a : b)
         .key;
@@ -420,15 +653,22 @@ class GameNotifier extends StateNotifier<GameState> {
           GameConstants.gridHeight,
     );
 
-    // Check if AI ate food.
-    final aiAte = nextHead == food;
+    final aiAte = nextHead == food || deathPellets.contains(nextHead);
     final newAiSnake = [nextHead, ...aiSnake];
     if (!aiAte) newAiSnake.removeLast();
 
     return (newAiSnake, bestDir);
   }
 
-  // ── Time Attack Clock ──────────────────────────────────────────────────────
+  /// Converts a dead AI's body to death pellets (every other segment).
+  void _addDeathPellets(
+      List<Position> deadSnake, List<Position> pellets) {
+    for (int i = 0; i < deadSnake.length; i += 2) {
+      pellets.add(deadSnake[i]);
+    }
+  }
+
+  // ── Clock ──────────────────────────────────────────────────────────────────
 
   void _startClock() {
     _clockTimer?.cancel();
@@ -439,6 +679,46 @@ class GameNotifier extends StateNotifier<GameState> {
         _gameOver();
       } else {
         state = state.copyWith(timeRemaining: remaining);
+      }
+    });
+  }
+
+  // ── Battle Royale: Shrinking Boundary ──────────────────────────────────────
+
+  void _startBoundaryShrink() {
+    _shrinkTimer?.cancel();
+    _shrinkTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (state.status != GameStatus.playing) return;
+      final newRadius = (state.boundaryRadius - 1).clamp(3, 10);
+      state = state.copyWith(boundaryRadius: newRadius);
+
+      final cx = GameConstants.gridWidth ~/ 2;
+      final cy = GameConstants.gridHeight ~/ 2;
+      final updatedAi = List<List<Position>>.from(
+          state.aiSnakes.map((s) => List<Position>.from(s)));
+      final newPellets = List<Position>.from(state.deathPellets);
+      final newFeed = List<String>.from(state.killFeed);
+      bool changed = false;
+
+      for (int i = 0; i < updatedAi.length; i++) {
+        if (updatedAi[i].isEmpty) continue;
+        final aiHead = updatedAi[i].first;
+        if (aiHead.x < cx - newRadius ||
+            aiHead.x > cx + newRadius ||
+            aiHead.y < cy - newRadius ||
+            aiHead.y > cy + newRadius) {
+          _addDeathPellets(updatedAi[i], newPellets);
+          newFeed.add('Storm eliminated Snake #${i + 1}');
+          updatedAi[i] = [];
+          changed = true;
+        }
+      }
+      if (changed) {
+        state = state.copyWith(
+          aiSnakes: updatedAi,
+          deathPellets: newPellets,
+          killFeed: newFeed,
+        );
       }
     });
   }
@@ -467,7 +747,6 @@ class GameNotifier extends StateNotifier<GameState> {
       _storage.saveHighScore(newHighScore);
     }
 
-    // Record game in player profile.
     try {
       _ref.read(playerProfileProvider.notifier).recordGame(
             score: state.score,
@@ -481,10 +760,10 @@ class GameNotifier extends StateNotifier<GameState> {
       status: GameStatus.gameOver,
       highScore: newHighScore,
       screenShake: false,
+      isBoosting: false,
     );
   }
 
-  /// Generates a random [FoodItem] with weighted type selection.
   FoodItem _generateFoodItem(
       List<Position> snake, List<Position> obstacles) {
     final pos = _generateFood(snake, obstacles);
@@ -494,9 +773,7 @@ class GameNotifier extends StateNotifier<GameState> {
     return FoodItem(position: pos, type: type);
   }
 
-  /// Returns a random [Position] that does not overlap the [snake] or [obstacles].
-  Position _generateFood(
-      List<Position> snake, List<Position> obstacles) {
+  Position _generateFood(List<Position> snake, List<Position> obstacles) {
     Position food;
     int attempts = 0;
     do {
@@ -510,7 +787,6 @@ class GameNotifier extends StateNotifier<GameState> {
     return food;
   }
 
-  /// Returns a random free position or null if grid is full.
   Position? _randomFreePosition(
       List<Position> snake, List<Position> obstacles) {
     int attempts = 0;
@@ -541,6 +817,7 @@ class GameNotifier extends StateNotifier<GameState> {
     _gameTimer?.cancel();
     _countdownTimer?.cancel();
     _clockTimer?.cancel();
+    _shrinkTimer?.cancel();
   }
 
   @override

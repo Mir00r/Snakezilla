@@ -136,6 +136,10 @@ class _ModeCard extends StatelessWidget {
         return AppColors.neonOrange;
       case GameMode.aiBattle:
         return AppColors.neonPink;
+      case GameMode.battleRoyale:
+        return AppColors.neonPurple;
+      case GameMode.goldRush:
+        return AppColors.neonYellow;
     }
   }
 
