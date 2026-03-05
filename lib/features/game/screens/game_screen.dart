@@ -187,20 +187,32 @@ class _GameScreenState extends ConsumerState<GameScreen>
                     ),
                   ),
 
-                  // Main game content
+                  // Main game content with camera zoom effect
                   AnimatedBuilder(
                     animation: _shakeAnimation,
                     builder: (context, child) {
                       final shake = _shakeAnimation.value;
                       final rng = Random();
-                      return Transform.translate(
-                        offset: shake > 0
-                            ? Offset(
-                                (rng.nextDouble() - 0.5) * shake,
-                                (rng.nextDouble() - 0.5) * shake,
-                              )
-                            : Offset.zero,
-                        child: child,
+                      // Camera zoom: subtle zoom out as snake grows
+                      final snakeLen = gameState.snake.length;
+                      final zoomScale = snakeLen > 20
+                          ? (1.0 - (snakeLen - 20) * 0.003).clamp(0.92, 1.0)
+                          : 1.0;
+                      // Boost zoom: slight zoom-in during boost
+                      final boostZoom = gameState.isBoosting ? 1.02 : 1.0;
+                      final finalScale = zoomScale * boostZoom;
+
+                      return Transform.scale(
+                        scale: finalScale,
+                        child: Transform.translate(
+                          offset: shake > 0
+                              ? Offset(
+                                  (rng.nextDouble() - 0.5) * shake,
+                                  (rng.nextDouble() - 0.5) * shake,
+                                )
+                              : Offset.zero,
+                          child: child,
+                        ),
                       );
                     },
                     child: Column(

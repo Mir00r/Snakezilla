@@ -5,17 +5,11 @@ import '../../features/settings/models/settings_model.dart';
 
 /// Manages all audio playback: sound effects and background music.
 ///
-/// Usage:
-/// ```dart
-/// final audio = ref.read(audioServiceProvider);
-/// audio.playEat();
-/// ```
-///
 /// Sound files are expected in `assets/audio/`:
-/// * `eat.mp3`
-/// * `game_over.mp3`
-/// * `tap.mp3`
-/// * `bgm.mp3`
+/// * `eat.wav`   – cheerful ascending chirp
+/// * `game_over.wav` – sad descending tone
+/// * `tap.wav`   – short UI click
+/// * `bgm.wav`   – looping background melody
 class AudioService {
   final AudioPlayer _musicPlayer = AudioPlayer();
   final AudioPlayer _sfxPlayer = AudioPlayer();
@@ -23,6 +17,9 @@ class AudioService {
   bool _soundEnabled = true;
   bool _musicEnabled = true;
   bool _initialized = false;
+
+  /// Current music intensity (0 = calm, 1 = normal, 2 = intense).
+  int _musicIntensity = 1;
 
   /// Pre-configures the audio players (loop mode, volume).
   Future<void> initialize() async {
@@ -49,7 +46,7 @@ class AudioService {
     if (!_soundEnabled) return;
     try {
       await _sfxPlayer.stop();
-      await _sfxPlayer.play(AssetSource('audio/eat.mp3'));
+      await _sfxPlayer.play(AssetSource('audio/eat.wav'));
     } catch (_) {
       // Gracefully ignore missing audio assets during development.
     }
@@ -60,7 +57,7 @@ class AudioService {
     if (!_soundEnabled) return;
     try {
       await _sfxPlayer.stop();
-      await _sfxPlayer.play(AssetSource('audio/game_over.mp3'));
+      await _sfxPlayer.play(AssetSource('audio/game_over.wav'));
     } catch (_) {}
   }
 
@@ -69,17 +66,66 @@ class AudioService {
     if (!_soundEnabled) return;
     try {
       await _sfxPlayer.stop();
-      await _sfxPlayer.play(AssetSource('audio/tap.mp3'));
+      await _sfxPlayer.play(AssetSource('audio/tap.wav'));
     } catch (_) {}
   }
 
-  // ── Background Music ──────────────────────────────────────────────────────
+  /// Plays a special combo sound (higher pitch eat).
+  Future<void> playCombo() async {
+    if (!_soundEnabled) return;
+    try {
+      await _sfxPlayer.stop();
+      await _sfxPlayer.setPlaybackRate(1.5);
+      await _sfxPlayer.play(AssetSource('audio/eat.wav'));
+      // Reset playback rate after a delay
+      Future.delayed(const Duration(milliseconds: 200), () {
+        _sfxPlayer.setPlaybackRate(1.0);
+      });
+    } catch (_) {}
+  }
+
+  /// Plays a power-up pickup sound (low pitch eat).
+  Future<void> playPowerUp() async {
+    if (!_soundEnabled) return;
+    try {
+      await _sfxPlayer.stop();
+      await _sfxPlayer.setPlaybackRate(0.7);
+      await _sfxPlayer.play(AssetSource('audio/eat.wav'));
+      Future.delayed(const Duration(milliseconds: 300), () {
+        _sfxPlayer.setPlaybackRate(1.0);
+      });
+    } catch (_) {}
+  }
+
+  // ── Dynamic Background Music ──────────────────────────────────────────────
 
   /// Starts the looping background music track.
   Future<void> startMusic() async {
     if (!_musicEnabled) return;
     try {
-      await _musicPlayer.play(AssetSource('audio/bgm.mp3'));
+      await _musicPlayer.play(AssetSource('audio/bgm.wav'));
+    } catch (_) {}
+  }
+
+  /// Adjusts music intensity based on gameplay state.
+  /// 0 = calm (slow), 1 = normal, 2 = intense (fast).
+  Future<void> setMusicIntensity(int intensity) async {
+    if (intensity == _musicIntensity) return;
+    _musicIntensity = intensity;
+    try {
+      switch (intensity) {
+        case 0:
+          await _musicPlayer.setPlaybackRate(0.8);
+          await _musicPlayer.setVolume(0.2);
+          break;
+        case 2:
+          await _musicPlayer.setPlaybackRate(1.3);
+          await _musicPlayer.setVolume(0.45);
+          break;
+        default:
+          await _musicPlayer.setPlaybackRate(1.0);
+          await _musicPlayer.setVolume(0.3);
+      }
     } catch (_) {}
   }
 

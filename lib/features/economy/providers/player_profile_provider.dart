@@ -253,6 +253,97 @@ class PlayerProfileNotifier extends StateNotifier<PlayerProfile> {
     _persist();
   }
 
+  // ── Rank Points ────────────────────────────────────────────────────────────
+
+  /// Awards rank points (from game results).
+  void addRankPoints(int amount) {
+    state = state.copyWith(rankPoints: state.rankPoints + amount);
+    _persist();
+  }
+
+  // ── Prestige ───────────────────────────────────────────────────────────────
+
+  /// Performs a prestige reset: resets coins/XP/streak, increments prestige.
+  void prestige() {
+    if (state.prestigeLevel >= 5) return;
+    state = state.copyWith(
+      prestigeLevel: state.prestigeLevel + 1,
+      coins: 0,
+      xp: 0,
+      dailyStreak: 0,
+      rankPoints: 0,
+      tournamentAttemptsToday: 0,
+      weeklyStepCompleted: 0,
+    );
+    _persist();
+  }
+
+  // ── Weekly Challenge ───────────────────────────────────────────────────────
+
+  /// Advances the weekly step counter. Returns true if advanced.
+  bool advanceWeeklyStep() {
+    final currentWeek = _currentISOWeek();
+    // Reset if new week
+    if (state.weeklyResetWeek != currentWeek) {
+      state = state.copyWith(
+        weeklyStepCompleted: 0,
+        weeklyResetWeek: currentWeek,
+      );
+    }
+    state = state.copyWith(
+        weeklyStepCompleted: state.weeklyStepCompleted + 1);
+    _persist();
+    return true;
+  }
+
+  int _currentISOWeek() {
+    final now = DateTime.now();
+    final dayOfYear =
+        now.difference(DateTime(now.year, 1, 1)).inDays + 1;
+    return ((dayOfYear - now.weekday + 10) / 7).floor();
+  }
+
+  // ── Tournament ─────────────────────────────────────────────────────────────
+
+  /// Uses a tournament attempt. Returns true if successful.
+  bool useTournamentAttempt() {
+    final today = DateTime.now().millisecondsSinceEpoch ~/ 86400000;
+    if (state.lastTournamentDay != today) {
+      state = state.copyWith(
+        tournamentAttemptsToday: 1,
+        lastTournamentDay: today,
+      );
+    } else {
+      state = state.copyWith(
+          tournamentAttemptsToday: state.tournamentAttemptsToday + 1);
+    }
+    _persist();
+    return true;
+  }
+
+  // ── Comeback Reward ────────────────────────────────────────────────────────
+
+  void claimComebackReward(int coins, int xp) {
+    state = state.copyWith(comebackRewardClaimed: true);
+    addCoins(coins);
+    addXp(xp);
+  }
+
+  // ── Analytics ──────────────────────────────────────────────────────────────
+
+  void trackSession() {
+    state = state.copyWith(
+        analyticsSessionCount: state.analyticsSessionCount + 1);
+    _persist();
+  }
+
+  // ── Last Game Mode ─────────────────────────────────────────────────────────
+
+  void setLastGameMode(String mode) {
+    state = state.copyWith(lastGameMode: mode);
+    _persist();
+  }
+
   // ── Title progression ──────────────────────────────────────────────────────
 
   void _updateTitle() {

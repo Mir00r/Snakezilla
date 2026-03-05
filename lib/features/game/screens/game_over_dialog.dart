@@ -9,6 +9,7 @@ import '../../economy/providers/player_profile_provider.dart';
 import '../../leaderboard/models/leaderboard_entry.dart';
 import '../../leaderboard/providers/leaderboard_provider.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../../social/screens/share_card_screen.dart';
 import '../models/game_mode.dart';
 import '../providers/game_provider.dart';
 
@@ -231,6 +232,22 @@ Future<void> showGameOverDialog(
                             _saveScore(ref, nameController.text, score);
                             Navigator.of(context).pop();
                             Navigator.of(context).pop();
+                          },
+                        ),
+                        _DialogButton(
+                          label: 'SHARE',
+                          color: AppColors.neonPurple,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ShareCardScreen(
+                                  score: score,
+                                  maxCombo: maxCombo,
+                                  kills: kills,
+                                  gameMode: gameMode.label,
+                                ),
+                              ),
+                            );
                           },
                         ),
                         _DialogButton(

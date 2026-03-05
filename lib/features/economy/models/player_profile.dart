@@ -70,6 +70,35 @@ class PlayerProfile {
   /// Whether the tutorial has been completed.
   final bool tutorialCompleted;
 
+  // ── Phase 4: Viral Growth & Retention ─────────────────────────────────────
+
+  /// Rank points for competitive league.
+  final int rankPoints;
+
+  /// Prestige level (0 = not prestiged).
+  final int prestigeLevel;
+
+  /// Current weekly challenge step completed (0-based).
+  final int weeklyStepCompleted;
+
+  /// ISO week number when weekly step was last reset.
+  final int weeklyResetWeek;
+
+  /// Tournament attempts used today.
+  final int tournamentAttemptsToday;
+
+  /// Day index of last tournament attempt.
+  final int lastTournamentDay;
+
+  /// Whether a comeback reward has been claimed this session.
+  final bool comebackRewardClaimed;
+
+  /// Total sessions tracked for analytics.
+  final int analyticsSessionCount;
+
+  /// Last game mode played (for retention AI recommendations).
+  final String lastGameMode;
+
   const PlayerProfile({
     this.coins = 0,
     this.xp = 0,
@@ -91,6 +120,15 @@ class PlayerProfile {
     this.unlockedWorlds = const {'neon_city'},
     this.equippedWorldId = 'neon_city',
     this.tutorialCompleted = false,
+    this.rankPoints = 0,
+    this.prestigeLevel = 0,
+    this.weeklyStepCompleted = 0,
+    this.weeklyResetWeek = 0,
+    this.tournamentAttemptsToday = 0,
+    this.lastTournamentDay = 0,
+    this.comebackRewardClaimed = false,
+    this.analyticsSessionCount = 0,
+    this.lastGameMode = 'classic',
   });
 
   PlayerProfile copyWith({
@@ -114,6 +152,15 @@ class PlayerProfile {
     Set<String>? unlockedWorlds,
     String? equippedWorldId,
     bool? tutorialCompleted,
+    int? rankPoints,
+    int? prestigeLevel,
+    int? weeklyStepCompleted,
+    int? weeklyResetWeek,
+    int? tournamentAttemptsToday,
+    int? lastTournamentDay,
+    bool? comebackRewardClaimed,
+    int? analyticsSessionCount,
+    String? lastGameMode,
   }) {
     return PlayerProfile(
       coins: coins ?? this.coins,
@@ -136,6 +183,18 @@ class PlayerProfile {
       unlockedWorlds: unlockedWorlds ?? this.unlockedWorlds,
       equippedWorldId: equippedWorldId ?? this.equippedWorldId,
       tutorialCompleted: tutorialCompleted ?? this.tutorialCompleted,
+      rankPoints: rankPoints ?? this.rankPoints,
+      prestigeLevel: prestigeLevel ?? this.prestigeLevel,
+      weeklyStepCompleted: weeklyStepCompleted ?? this.weeklyStepCompleted,
+      weeklyResetWeek: weeklyResetWeek ?? this.weeklyResetWeek,
+      tournamentAttemptsToday:
+          tournamentAttemptsToday ?? this.tournamentAttemptsToday,
+      lastTournamentDay: lastTournamentDay ?? this.lastTournamentDay,
+      comebackRewardClaimed:
+          comebackRewardClaimed ?? this.comebackRewardClaimed,
+      analyticsSessionCount:
+          analyticsSessionCount ?? this.analyticsSessionCount,
+      lastGameMode: lastGameMode ?? this.lastGameMode,
     );
   }
 
@@ -161,6 +220,15 @@ class PlayerProfile {
         'unlockedWorlds': unlockedWorlds.toList(),
         'equippedWorldId': equippedWorldId,
         'tutorialCompleted': tutorialCompleted,
+        'rankPoints': rankPoints,
+        'prestigeLevel': prestigeLevel,
+        'weeklyStepCompleted': weeklyStepCompleted,
+        'weeklyResetWeek': weeklyResetWeek,
+        'tournamentAttemptsToday': tournamentAttemptsToday,
+        'lastTournamentDay': lastTournamentDay,
+        'comebackRewardClaimed': comebackRewardClaimed,
+        'analyticsSessionCount': analyticsSessionCount,
+        'lastGameMode': lastGameMode,
       };
 
   /// Deserialises from a stored map with safe defaults.
@@ -198,6 +266,18 @@ class PlayerProfile {
           {'neon_city'},
       equippedWorldId: map['equippedWorldId'] as String? ?? 'neon_city',
       tutorialCompleted: map['tutorialCompleted'] as bool? ?? false,
+      rankPoints: map['rankPoints'] as int? ?? 0,
+      prestigeLevel: map['prestigeLevel'] as int? ?? 0,
+      weeklyStepCompleted: map['weeklyStepCompleted'] as int? ?? 0,
+      weeklyResetWeek: map['weeklyResetWeek'] as int? ?? 0,
+      tournamentAttemptsToday:
+          map['tournamentAttemptsToday'] as int? ?? 0,
+      lastTournamentDay: map['lastTournamentDay'] as int? ?? 0,
+      comebackRewardClaimed:
+          map['comebackRewardClaimed'] as bool? ?? false,
+      analyticsSessionCount:
+          map['analyticsSessionCount'] as int? ?? 0,
+      lastGameMode: map['lastGameMode'] as String? ?? 'classic',
     );
   }
 }

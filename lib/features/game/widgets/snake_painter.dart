@@ -354,6 +354,25 @@ class SnakePainter extends CustomPainter {
 
     final segmentCount = snake.length;
 
+    // ── Cosmetic: Neon pulse glow behind entire snake ─────────────────────
+    final pulseIntensity = 0.15 + 0.1 * sin(foodPulse * pi * 2);
+    for (int i = segmentCount - 1; i >= 0; i--) {
+      final pos = snake[i];
+      final center = Offset(
+        pos.x * cellW + cellW / 2,
+        pos.y * cellH + cellH / 2,
+      );
+      final t = segmentCount > 1 ? i / (segmentCount - 1) : 0.0;
+      final color = Color.lerp(skin.headColor, skin.tailColor, t)!;
+      canvas.drawCircle(
+        center,
+        min(cellW, cellH) * (0.6 + pulseIntensity),
+        Paint()
+          ..color = color.withOpacity(pulseIntensity * (1 - t * 0.7))
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+    }
+
     for (int i = segmentCount - 1; i >= 0; i--) {
       final pos = snake[i];
       const inset = 1.0;
@@ -373,12 +392,32 @@ class SnakePainter extends CustomPainter {
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, isBoosting ? skin.glowRadius * 2 : skin.glowRadius));
       }
 
-      // Boost trail: fading tail segments.
-      if (isBoosting && i > segmentCount * 0.6) {
-        final trailOpacity = 0.3 * (1 - t);
-        canvas.drawRRect(rect, Paint()..color = skin.glowColor.withOpacity(trailOpacity));
+      // Boost trail: fire effect with fading segments.
+      if (isBoosting && i > segmentCount * 0.5) {
+        final trailT = (i - segmentCount * 0.5) / (segmentCount * 0.5);
+        final trailOpacity = 0.4 * (1 - t);
+        // Orange-to-red fire gradient
+        final fireColor = Color.lerp(
+          const Color(0xFFFF6B00),
+          const Color(0xFFFF0040),
+          trailT,
+        )!;
+        canvas.drawRRect(rect, Paint()
+          ..color = fireColor.withOpacity(trailOpacity)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+        canvas.drawRRect(rect, Paint()..color = color.withOpacity(0.7));
       } else {
         canvas.drawRRect(rect, Paint()..color = color);
+      }
+
+      // ── Cosmetic: Rainbow shimmer on long snakes ───────────────────────
+      if (segmentCount > 15 && i > 0) {
+        final shimmerPhase = (foodPulse * 4 + i * 0.15) % 1.0;
+        if (shimmerPhase > 0.8) {
+          final shimmerOpacity = (shimmerPhase - 0.8) / 0.2 * 0.3;
+          canvas.drawRRect(rect, Paint()
+            ..color = Colors.white.withOpacity(shimmerOpacity));
+        }
       }
 
       if (i == 0) _drawEyes(canvas, pos, cellW, cellH, direction);

@@ -9,6 +9,7 @@ import '../../../shared/widgets/glass_container.dart';
 import '../../../shared/widgets/neon_text.dart';
 import '../../../shared/widgets/tutorial_overlay.dart';
 import '../../achievements/screens/achievements_screen.dart';
+import '../../challenges/screens/weekly_challenge_screen.dart';
 import '../../economy/providers/player_profile_provider.dart';
 import '../../economy/screens/daily_missions_screen.dart';
 import '../../economy/screens/daily_reward_screen.dart';
@@ -17,10 +18,13 @@ import '../../economy/screens/stats_screen.dart';
 import '../../events/screens/events_screen.dart';
 import '../../game/screens/mini_games_screen.dart';
 import '../../game/screens/mode_select_screen.dart';
-import '../../leaderboard/screens/leaderboard_screen.dart';
 import '../../pets/screens/pet_store_screen.dart';
+import '../../prestige/screens/prestige_screen.dart';
+import '../../ranks/screens/rank_screen.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../skins/screens/skin_store_screen.dart';
+import '../../social/screens/social_screen.dart';
+import '../../tournament/screens/tournament_screen.dart';
 
 /// Landing screen with the Snakezilla main menu.
 ///
@@ -47,7 +51,12 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       body: AnimatedGradientBackground(
-        child: SafeArea(
+        child: Stack(
+          children: [
+            // Live animated background - floating particles
+            const Positioned.fill(child: _MenuParticles()),
+
+            SafeArea(
           child: Center(
             child: SingleChildScrollView(
               padding:
@@ -140,6 +149,37 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 10),
 
+                  // ── Tournament + Weekly ────────────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'TOURNEY',
+                          icon: Icons.emoji_events_outlined,
+                          color: const Color(0xFFFFD700),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const TournamentScreen()),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'WEEKLY',
+                          icon: Icons.calendar_today_rounded,
+                          color: const Color(0xFF00E5FF),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    const WeeklyChallengeScreen()),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
                   // ── Second row: Pets + Events ──────────────────────────
                   Row(
                     children: [
@@ -200,7 +240,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 10),
 
-                  // ── Fourth row: Achievements + Leaderboard ────────────
+                  // ── Fourth row: Achievements + Rank League ──────────
                   Row(
                     children: [
                       Expanded(
@@ -222,7 +262,37 @@ class HomeScreen extends ConsumerWidget {
                           color: AppColors.neonOrange,
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
-                                builder: (_) => const LeaderboardScreen()),
+                                builder: (_) => const RankScreen()),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // ── Fifth row: Social + Prestige ───────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'SOCIAL',
+                          icon: Icons.people_rounded,
+                          color: const Color(0xFF64B5F6),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const SocialScreen()),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'PRESTIGE',
+                          icon: Icons.auto_awesome,
+                          color: const Color(0xFFE040FB),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const PrestigeScreen()),
                           ),
                         ),
                       ),
@@ -243,6 +313,8 @@ class HomeScreen extends ConsumerWidget {
             ),
           ),
         ),
+          ],  // Stack children
+        ),  // Stack
       ),
     );
   }
@@ -523,4 +595,96 @@ class _MenuButtonState extends State<_MenuButton>
       ),
     );
   }
+}
+
+// ── Live Animated Menu Background ────────────────────────────────────────────
+
+class _MenuParticles extends StatefulWidget {
+  const _MenuParticles();
+
+  @override
+  State<_MenuParticles> createState() => _MenuParticlesState();
+}
+
+class _MenuParticlesState extends State<_MenuParticles>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _MenuParticlePainter(_controller.value),
+          size: Size.infinite,
+        );
+      },
+    );
+  }
+}
+
+class _MenuParticlePainter extends CustomPainter {
+  final double animValue;
+  _MenuParticlePainter(this.animValue);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    const particleCount = 20;
+
+    for (int i = 0; i < particleCount; i++) {
+      final seed = i * 137.508; // Golden angle
+      final t = (animValue + seed / 1000) % 1.0;
+
+      // Horizontal position based on seed
+      final x = (seed * 7.3 % size.width);
+      // Vertical: drift upward
+      final y = size.height * (1.0 - t);
+
+      // Size: small glowing dots
+      final radius = 1.5 + (seed % 3);
+
+      // Color: alternate between green, purple, blue
+      final colorIdx = i % 3;
+      final color = colorIdx == 0
+          ? AppColors.neonGreen
+          : colorIdx == 1
+              ? AppColors.neonPurple
+              : AppColors.neonBlue;
+
+      // Fade in/out
+      final opacity = t < 0.1
+          ? t / 0.1
+          : t > 0.9
+              ? (1.0 - t) / 0.1
+              : 1.0;
+
+      paint.color = color.withValues(alpha: opacity * 0.15);
+      paint.maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      canvas.drawCircle(Offset(x, y), radius * 2, paint);
+
+      paint.color = color.withValues(alpha: opacity * 0.4);
+      paint.maskFilter = null;
+      canvas.drawCircle(Offset(x, y), radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MenuParticlePainter old) => true;
 }
