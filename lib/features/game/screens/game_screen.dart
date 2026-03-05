@@ -11,10 +11,12 @@ import '../../../shared/widgets/neon_text.dart';
 import '../models/direction.dart';
 import '../models/game_mode.dart';
 import '../models/game_state.dart';
+import '../models/game_world.dart';
 import '../providers/game_provider.dart';
 import '../widgets/game_board.dart';
 import '../widgets/game_controls.dart';
 import '../widgets/score_display.dart';
+import '../widgets/world_particle_overlay.dart';
 import 'game_over_dialog.dart';
 
 /// Main game screen containing the board, score HUD, and controls.
@@ -178,6 +180,13 @@ class _GameScreenState extends ConsumerState<GameScreen>
               },
               child: Stack(
                 children: [
+                  // World particle effects (behind everything)
+                  Positioned.fill(
+                    child: WorldParticleOverlay(
+                      world: GameWorlds.all.first,
+                    ),
+                  ),
+
                   // Main game content
                   AnimatedBuilder(
                     animation: _shakeAnimation,
@@ -247,6 +256,55 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                   ),
                                 ))
                             .toList(),
+                      ),
+                    ),
+
+                  // Floating combo text overlay
+                  if (gameState.combo > 2)
+                    Positioned(
+                      top: MediaQuery.of(context).size.height * 0.35,
+                      left: 0,
+                      right: 0,
+                      child: IgnorePointer(
+                        child: TweenAnimationBuilder<double>(
+                          key: ValueKey(gameState.combo),
+                          tween: Tween(begin: 2.0, end: 1.0),
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.elasticOut,
+                          builder: (context, scale, child) {
+                            return Transform.scale(
+                              scale: scale,
+                              child: Opacity(
+                                opacity: (scale > 1.0)
+                                    ? (2.0 - scale)
+                                    : 1.0,
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: Center(
+                            child: Text(
+                              '${gameState.combo}x COMBO! ${_comboEmoji(gameState.combo)}',
+                              style: GoogleFonts.pressStart2p(
+                                fontSize: gameState.combo > 10 ? 16 : 12,
+                                color: gameState.combo > 10
+                                    ? AppColors.neonPink
+                                    : gameState.combo > 5
+                                        ? AppColors.neonOrange
+                                        : AppColors.neonYellow,
+                                shadows: [
+                                  Shadow(
+                                    color: (gameState.combo > 10
+                                            ? AppColors.neonPink
+                                            : AppColors.neonOrange)
+                                        .withValues(alpha: 0.8),
+                                    blurRadius: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -391,6 +449,14 @@ class _GameScreenState extends ConsumerState<GameScreen>
         ],
       ),
     );
+  }
+
+  String _comboEmoji(int combo) {
+    if (combo >= 20) return '🌟';
+    if (combo >= 15) return '💥';
+    if (combo >= 10) return '🔥';
+    if (combo >= 5) return '⚡';
+    return '✨';
   }
 }
 

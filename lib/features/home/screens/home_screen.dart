@@ -7,11 +7,18 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/animated_gradient_background.dart';
 import '../../../shared/widgets/glass_container.dart';
 import '../../../shared/widgets/neon_text.dart';
+import '../../../shared/widgets/tutorial_overlay.dart';
 import '../../achievements/screens/achievements_screen.dart';
 import '../../economy/providers/player_profile_provider.dart';
 import '../../economy/screens/daily_missions_screen.dart';
+import '../../economy/screens/daily_reward_screen.dart';
+import '../../economy/screens/spin_wheel_screen.dart';
+import '../../economy/screens/stats_screen.dart';
+import '../../events/screens/events_screen.dart';
+import '../../game/screens/mini_games_screen.dart';
 import '../../game/screens/mode_select_screen.dart';
 import '../../leaderboard/screens/leaderboard_screen.dart';
+import '../../pets/screens/pet_store_screen.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../skins/screens/skin_store_screen.dart';
 
@@ -28,6 +35,15 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(playerProfileProvider);
+
+    // Show tutorial for first-time players
+    if (!profile.tutorialCompleted) {
+      return TutorialOverlay(
+        onComplete: () {
+          ref.read(playerProfileProvider.notifier).completeTutorial();
+        },
+      );
+    }
 
     return Scaffold(
       body: AnimatedGradientBackground(
@@ -58,11 +74,37 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  // ── Daily reward ───────────────────────────────────────
-                  _DailyRewardButton(ref: ref),
-                  const SizedBox(height: 20),
+                  // ── Daily reward + Spin row ────────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CompactButton(
+                          emoji: '🎁',
+                          label: 'REWARDS',
+                          color: AppColors.neonYellow,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const DailyRewardScreen()),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CompactButton(
+                          emoji: '🎰',
+                          label: 'SPIN',
+                          color: AppColors.neonPurple,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const SpinWheelScreen()),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
 
-                  // ── Menu buttons ───────────────────────────────────────
+                  // ── Main PLAY button ───────────────────────────────────
                   _MenuButton(
                     label: 'PLAY',
                     icon: Icons.play_arrow_rounded,
@@ -72,7 +114,21 @@ class HomeScreen extends ConsumerWidget {
                           builder: (_) => const ModeSelectScreen()),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+
+                  // ── Mini Games ────────────────────────────────────────
+                  _MenuButton(
+                    label: 'MINI GAMES',
+                    icon: Icons.sports_esports_rounded,
+                    color: AppColors.neonOrange,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const MiniGamesScreen()),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // ── Missions ──────────────────────────────────────────
                   _MenuButton(
                     label: 'MISSIONS',
                     icon: Icons.assignment_rounded,
@@ -82,37 +138,97 @@ class HomeScreen extends ConsumerWidget {
                           builder: (_) => const DailyMissionsScreen()),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  _MenuButton(
-                    label: 'SKINS',
-                    icon: Icons.palette_rounded,
-                    color: AppColors.neonPurple,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const SkinStoreScreen()),
-                    ),
+                  const SizedBox(height: 10),
+
+                  // ── Second row: Pets + Events ──────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'PETS',
+                          icon: Icons.pets_rounded,
+                          color: const Color(0xFFFF6B9D),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const PetStoreScreen()),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'EVENTS',
+                          icon: Icons.celebration_rounded,
+                          color: const Color(0xFF00E5FF),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const EventsScreen()),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  _MenuButton(
-                    label: 'ACHIEVEMENTS',
-                    icon: Icons.emoji_events_rounded,
-                    color: AppColors.neonYellow,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const AchievementsScreen()),
-                    ),
+                  const SizedBox(height: 10),
+
+                  // ── Third row: Skins + Stats ──────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'SKINS',
+                          icon: Icons.palette_rounded,
+                          color: AppColors.neonPurple,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const SkinStoreScreen()),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'STATS',
+                          icon: Icons.bar_chart_rounded,
+                          color: const Color(0xFF64FFDA),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const StatsScreen()),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  _MenuButton(
-                    label: 'LEADERBOARD',
-                    icon: Icons.leaderboard_rounded,
-                    color: AppColors.neonOrange,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const LeaderboardScreen()),
-                    ),
+                  const SizedBox(height: 10),
+
+                  // ── Fourth row: Achievements + Leaderboard ────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'TROPHIES',
+                          icon: Icons.emoji_events_rounded,
+                          color: AppColors.neonYellow,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const AchievementsScreen()),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CompactMenuButton(
+                          label: 'RANKS',
+                          icon: Icons.leaderboard_rounded,
+                          color: AppColors.neonOrange,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const LeaderboardScreen()),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   _MenuButton(
                     label: 'SETTINGS',
                     icon: Icons.settings_rounded,
@@ -232,61 +348,88 @@ class _PlayerInfoBar extends StatelessWidget {
   }
 }
 
-// ── Daily Reward Button ──────────────────────────────────────────────────────
+// ── Compact Button (emoji + label) ───────────────────────────────────────────
 
-class _DailyRewardButton extends StatelessWidget {
-  final WidgetRef ref;
+class _CompactButton extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
 
-  const _DailyRewardButton({required this.ref});
+  const _CompactButton({
+    required this.emoji,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now().millisecondsSinceEpoch ~/ 86400000;
-    final profile = ref.watch(playerProfileProvider);
-    final canClaim = profile.lastDailyRewardDay < today;
-
     return GestureDetector(
-      onTap: canClaim
-          ? () {
-              ref.read(playerProfileProvider.notifier).claimDailyReward();
-              HapticFeedback.mediumImpact();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '💰 +50 coins claimed!',
-                    style: GoogleFonts.pressStart2p(fontSize: 10),
-                    textAlign: TextAlign.center,
-                  ),
-                  backgroundColor: AppColors.darkCard,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
-          : null,
-      child: AnimatedOpacity(
-        opacity: canClaim ? 1.0 : 0.4,
-        duration: const Duration(milliseconds: 300),
-        child: GlassContainer(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          borderColor: canClaim
-              ? AppColors.neonYellow.withOpacity(0.4)
-              : Colors.white12,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('🎁', style: TextStyle(fontSize: 20)),
-              const SizedBox(width: 12),
-              Text(
-                canClaim ? 'CLAIM DAILY REWARD' : 'CLAIMED TODAY',
-                style: GoogleFonts.pressStart2p(
-                  fontSize: 9,
-                  color: canClaim
-                      ? AppColors.neonYellow
-                      : Colors.white38,
-                ),
+      onTap: onTap,
+      child: GlassContainer(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        borderColor: color.withValues(alpha: 0.4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.pressStart2p(
+                fontSize: 8,
+                color: color,
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Compact Menu Button (icon + label, for side-by-side layout) ──────────────
+
+class _CompactMenuButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _CompactMenuButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: GlassContainer(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        borderColor: color.withValues(alpha: 0.3),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.pressStart2p(
+                fontSize: 8,
+                color: color,
+                shadows: [
+                  Shadow(
+                    color: color.withValues(alpha: 0.5),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

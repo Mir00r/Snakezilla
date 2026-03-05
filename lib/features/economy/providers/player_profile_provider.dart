@@ -5,7 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../shared/services/storage_service.dart';
 import '../../achievements/models/achievement.dart';
+import '../../game/models/game_world.dart';
+import '../../pets/models/companion_pet.dart';
 import '../../skins/models/snake_skin.dart';
+import '../models/daily_reward.dart';
 import '../models/player_profile.dart';
 
 const _kProfileKey = 'snakezilla_player_profile';
@@ -32,7 +35,11 @@ class PlayerProfileNotifier extends StateNotifier<PlayerProfile> {
 
   /// Awards [amount] coins (from score, combos, achievements, daily reward).
   void addCoins(int amount) {
-    state = state.copyWith(coins: state.coins + amount);
+    state = state.copyWith(
+      coins: state.coins + amount,
+      totalCoinsEarned: state.totalCoinsEarned + amount,
+    );
+    _updateTitle();
     _persist();
   }
 
@@ -48,6 +55,7 @@ class PlayerProfileNotifier extends StateNotifier<PlayerProfile> {
 
   void addXp(int amount) {
     state = state.copyWith(xp: state.xp + amount);
+    _updateTitle();
     _persist();
   }
 
@@ -159,6 +167,117 @@ class PlayerProfileNotifier extends StateNotifier<PlayerProfile> {
     state = state.copyWith(lastDailyRewardDay: today);
     addCoins(50);
     return true;
+  }
+
+  // ── Enhanced Daily Rewards (7‑day calendar) ────────────────────────────────
+
+  /// Claims a specific day's reward from the 7‑day calendar.
+  bool claimDailyRewardV2(int dayIndex) {
+    final today = DateTime.now().millisecondsSinceEpoch ~/ 86400000;
+    if (state.lastDailyRewardDay >= today) return false;
+
+    final schedule = DailyRewardCalendar.schedule;
+    if (dayIndex < 0 || dayIndex >= schedule.length) return false;
+
+    final reward = schedule[dayIndex];
+    final yesterday = today - 1;
+    final isConsecutive = state.lastDailyRewardDay == yesterday;
+
+    state = state.copyWith(
+      lastDailyRewardDay: today,
+      dailyStreak: isConsecutive ? state.dailyStreak + 1 : 1,
+    );
+    addCoins(reward.coins);
+    addXp(20); // Bonus XP for logging in
+    return true;
+  }
+
+  // ── Spin Wheel ─────────────────────────────────────────────────────────────
+
+  /// Returns true if the player can spin today.
+  bool get canSpin {
+    final today = DateTime.now().millisecondsSinceEpoch ~/ 86400000;
+    return state.lastSpinDay < today;
+  }
+
+  /// Marks the spin as used today.
+  void claimSpinReward() {
+    final today = DateTime.now().millisecondsSinceEpoch ~/ 86400000;
+    state = state.copyWith(lastSpinDay: today);
+    _persist();
+  }
+
+  // ── Companion Pets ─────────────────────────────────────────────────────────
+
+  /// Purchases a pet. Returns `true` on success.
+  bool purchasePet(CompanionPet pet) {
+    if (state.unlockedPets.contains(pet.id)) return true;
+    if (!spendCoins(pet.price)) return false;
+    final updated = {...state.unlockedPets, pet.id};
+    state = state.copyWith(unlockedPets: updated);
+    _persist();
+    return true;
+  }
+
+  /// Equips a pet (pass null to unequip).
+  void equipPet(String? petId) {
+    if (petId != null && !state.unlockedPets.contains(petId)) return;
+    state = state.copyWith(equippedPetId: petId ?? '');
+    _persist();
+  }
+
+  // ── Game Worlds ────────────────────────────────────────────────────────────
+
+  /// Purchases a world. Returns `true` on success.
+  bool purchaseWorld(GameWorld world) {
+    if (state.unlockedWorlds.contains(world.id)) return true;
+    if (state.level < world.unlockLevel) return false;
+    if (!spendCoins(world.price)) return false;
+    final updated = {...state.unlockedWorlds, world.id};
+    state = state.copyWith(unlockedWorlds: updated);
+    _persist();
+    return true;
+  }
+
+  /// Equips a world theme.
+  void equipWorld(String worldId) {
+    if (!state.unlockedWorlds.contains(worldId)) return;
+    state = state.copyWith(equippedWorldId: worldId);
+    _persist();
+  }
+
+  // ── Tutorial ───────────────────────────────────────────────────────────────
+
+  void completeTutorial() {
+    state = state.copyWith(tutorialCompleted: true);
+    _persist();
+  }
+
+  // ── Title progression ──────────────────────────────────────────────────────
+
+  void _updateTitle() {
+    final lvl = state.level;
+    String title;
+    if (lvl >= 50) {
+      title = 'Snake God';
+    } else if (lvl >= 40) {
+      title = 'Snake Legend';
+    } else if (lvl >= 30) {
+      title = 'Snake Master';
+    } else if (lvl >= 20) {
+      title = 'Snake Champion';
+    } else if (lvl >= 15) {
+      title = 'Snake Veteran';
+    } else if (lvl >= 10) {
+      title = 'Snake Expert';
+    } else if (lvl >= 5) {
+      title = 'Snake Apprentice';
+    } else {
+      title = 'Snake Rookie';
+    }
+    if (title != state.playerTitle) {
+      state = state.copyWith(playerTitle: title);
+    }
   }
 
   // ── Persistence ────────────────────────────────────────────────────────────

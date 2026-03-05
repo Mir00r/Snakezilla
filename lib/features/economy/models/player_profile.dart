@@ -41,6 +41,35 @@ class PlayerProfile {
   /// Day index of the last daily reward claim (days since epoch).
   final int lastDailyRewardDay;
 
+  // ── New fields ───────────────────────────────────────────────────────────
+
+  /// Current consecutive daily-login streak.
+  final int dailyStreak;
+
+  /// Day index of the last spin-wheel spin.
+  final int lastSpinDay;
+
+  /// IDs of unlocked companion pets.
+  final Set<String> unlockedPets;
+
+  /// ID of the currently equipped pet (null = none).
+  final String? equippedPetId;
+
+  /// Display title below player name.
+  final String playerTitle;
+
+  /// Lifetime coins earned (never decreases).
+  final int totalCoinsEarned;
+
+  /// IDs of unlocked game worlds.
+  final Set<String> unlockedWorlds;
+
+  /// ID of the currently equipped world theme.
+  final String equippedWorldId;
+
+  /// Whether the tutorial has been completed.
+  final bool tutorialCompleted;
+
   const PlayerProfile({
     this.coins = 0,
     this.xp = 0,
@@ -53,6 +82,15 @@ class PlayerProfile {
     this.unlockedSkins = const {'neon'},
     this.equippedSkinId = 'neon',
     this.lastDailyRewardDay = 0,
+    this.dailyStreak = 0,
+    this.lastSpinDay = 0,
+    this.unlockedPets = const {'robot_drone'},
+    this.equippedPetId,
+    this.playerTitle = 'Snake Rookie',
+    this.totalCoinsEarned = 0,
+    this.unlockedWorlds = const {'neon_city'},
+    this.equippedWorldId = 'neon_city',
+    this.tutorialCompleted = false,
   });
 
   PlayerProfile copyWith({
@@ -67,6 +105,15 @@ class PlayerProfile {
     Set<String>? unlockedSkins,
     String? equippedSkinId,
     int? lastDailyRewardDay,
+    int? dailyStreak,
+    int? lastSpinDay,
+    Set<String>? unlockedPets,
+    String? equippedPetId,
+    String? playerTitle,
+    int? totalCoinsEarned,
+    Set<String>? unlockedWorlds,
+    String? equippedWorldId,
+    bool? tutorialCompleted,
   }) {
     return PlayerProfile(
       coins: coins ?? this.coins,
@@ -80,6 +127,15 @@ class PlayerProfile {
       unlockedSkins: unlockedSkins ?? this.unlockedSkins,
       equippedSkinId: equippedSkinId ?? this.equippedSkinId,
       lastDailyRewardDay: lastDailyRewardDay ?? this.lastDailyRewardDay,
+      dailyStreak: dailyStreak ?? this.dailyStreak,
+      lastSpinDay: lastSpinDay ?? this.lastSpinDay,
+      unlockedPets: unlockedPets ?? this.unlockedPets,
+      equippedPetId: equippedPetId ?? this.equippedPetId,
+      playerTitle: playerTitle ?? this.playerTitle,
+      totalCoinsEarned: totalCoinsEarned ?? this.totalCoinsEarned,
+      unlockedWorlds: unlockedWorlds ?? this.unlockedWorlds,
+      equippedWorldId: equippedWorldId ?? this.equippedWorldId,
+      tutorialCompleted: tutorialCompleted ?? this.tutorialCompleted,
     );
   }
 
@@ -96,6 +152,15 @@ class PlayerProfile {
         'unlockedSkins': unlockedSkins.toList(),
         'equippedSkinId': equippedSkinId,
         'lastDailyRewardDay': lastDailyRewardDay,
+        'dailyStreak': dailyStreak,
+        'lastSpinDay': lastSpinDay,
+        'unlockedPets': unlockedPets.toList(),
+        'equippedPetId': equippedPetId,
+        'playerTitle': playerTitle,
+        'totalCoinsEarned': totalCoinsEarned,
+        'unlockedWorlds': unlockedWorlds.toList(),
+        'equippedWorldId': equippedWorldId,
+        'tutorialCompleted': tutorialCompleted,
       };
 
   /// Deserialises from a stored map with safe defaults.
@@ -118,6 +183,21 @@ class PlayerProfile {
           {'neon'},
       equippedSkinId: map['equippedSkinId'] as String? ?? 'neon',
       lastDailyRewardDay: map['lastDailyRewardDay'] as int? ?? 0,
+      dailyStreak: map['dailyStreak'] as int? ?? 0,
+      lastSpinDay: map['lastSpinDay'] as int? ?? 0,
+      unlockedPets: (map['unlockedPets'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toSet() ??
+          {'robot_drone'},
+      equippedPetId: map['equippedPetId'] as String?,
+      playerTitle: map['playerTitle'] as String? ?? 'Snake Rookie',
+      totalCoinsEarned: map['totalCoinsEarned'] as int? ?? 0,
+      unlockedWorlds: (map['unlockedWorlds'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toSet() ??
+          {'neon_city'},
+      equippedWorldId: map['equippedWorldId'] as String? ?? 'neon_city',
+      tutorialCompleted: map['tutorialCompleted'] as bool? ?? false,
     );
   }
 }
